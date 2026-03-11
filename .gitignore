@@ -1,0 +1,8 @@
+# Environment and secrets - do not commit
+.env
+.env.local
+*.pem
+*-credentials.json
+
+# Local config - copy from application.yml.example
+backend/src/main/resources/application.yml

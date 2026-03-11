@@ -1,0 +1,3 @@
+# Test profile - use stub implementations, no GCP/ADK
+conversational-commerce:
+  enabled: false
