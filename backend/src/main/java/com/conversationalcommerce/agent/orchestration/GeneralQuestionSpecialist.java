@@ -21,9 +21,7 @@ public class GeneralQuestionSpecialist implements GeneralQuestionHandler {
     }
 
     public AgentResponse handle(String message, Map<String, Object> context) {
-        String userId = context != null && context.containsKey("visitorId")
-                ? String.valueOf(context.get("visitorId"))
-                : "user-" + System.currentTimeMillis();
+        String userId = ContextUtils.getVisitorId(context, null);
         return runner.run(message, userId);
     }
 }

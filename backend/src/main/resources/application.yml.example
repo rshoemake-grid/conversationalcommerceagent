@@ -1,6 +1,18 @@
 server:
   port: 8080
 
+# CORS - use specific origins in production (e.g. https://your-frontend.com)
+app:
+  cors:
+    allowed-origins: "*"
+
+# REST API docs
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
 spring:
   application:
     name: conversational-commerce-agent

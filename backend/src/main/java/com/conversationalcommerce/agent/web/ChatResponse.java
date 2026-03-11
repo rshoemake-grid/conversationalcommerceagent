@@ -11,17 +11,29 @@ public record ChatResponse(
         List<ProductDto> products
 ) {
     public static ChatResponse from(AgentResponse r) {
+        if (r == null) {
+            return new ChatResponse("", "", null, List.of());
+        }
         List<ProductDto> products = r.products() != null
                 ? r.products().stream()
-                .map(p -> new ProductDto(p.id(), p.title(), p.description(), p.price(), p.imageUri()))
+                .map(p -> new ProductDto(
+                        nullToEmpty(p.id()),
+                        nullToEmpty(p.title()),
+                        nullToEmpty(p.description()),
+                        nullToEmpty(p.price()),
+                        p.imageUri()))
                 .toList()
                 : List.of();
         return new ChatResponse(
-                r.text(),
-                r.conversationId(),
+                r.text() != null ? r.text() : "",
+                r.conversationId() != null ? r.conversationId() : "",
                 r.refinedQuery(),
                 products
         );
+    }
+
+    private static String nullToEmpty(String s) {
+        return s != null ? s : "";
     }
 
     public record ProductDto(String id, String title, String description, String price, String imageUri) {}

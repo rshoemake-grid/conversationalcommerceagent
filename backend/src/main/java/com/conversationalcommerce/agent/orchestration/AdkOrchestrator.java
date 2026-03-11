@@ -20,22 +20,32 @@ import java.util.Optional;
  * ADK agent has tools including Conversational Commerce, delegates as needed.
  */
 @Service
-public class AdkOrchestrator {
+public class AdkOrchestrator implements ChatOrchestrator {
 
     private static final String APP_NAME = "conversational_commerce";
 
     private final LlmAgent adkOrchestratorAgent;
     private final InMemoryRunner runner;
+    private final ChatOrchestrator testDelegate;
 
     public AdkOrchestrator(LlmAgent adkOrchestratorAgent) {
+        this(adkOrchestratorAgent, null);
+    }
+
+    /**
+     * Package-private constructor for testing. When testDelegate is non-null, process() delegates to it.
+     */
+    AdkOrchestrator(LlmAgent adkOrchestratorAgent, ChatOrchestrator testDelegate) {
         this.adkOrchestratorAgent = adkOrchestratorAgent;
-        this.runner = new InMemoryRunner(adkOrchestratorAgent, APP_NAME);
+        this.runner = testDelegate != null ? null : new InMemoryRunner(adkOrchestratorAgent, APP_NAME);
+        this.testDelegate = testDelegate;
     }
 
     public AgentResponse process(String message, String conversationId, Map<String, Object> context) {
-        String visitorId = context != null && context.containsKey("visitorId")
-                ? String.valueOf(context.get("visitorId"))
-                : "user-" + System.currentTimeMillis();
+        if (testDelegate != null) {
+            return testDelegate.process(message, conversationId, context);
+        }
+        String visitorId = ContextUtils.getVisitorId(context, null);
 
         String sessionId = resolveOrCreateSession(conversationId, visitorId);
         Content userMessage = Content.fromParts(Part.fromText(message));

@@ -35,13 +35,20 @@ public class RetailSearchClientImpl implements RetailSearchClient {
         List<AgentResponse.ProductResult> results = new ArrayList<>();
         for (SearchResponse.SearchResult sr : pagedResponse.iterateAll()) {
             var product = sr.getProduct();
-            String id = product.getName();
-            String title = product.getTitle();
-            String desc = product.getDescription();
-            String price = product.getPriceInfo().getPrice() > 0
-                    ? String.format("$%.2f", product.getPriceInfo().getPrice())
-                    : "";
-            String imageUri = product.getImagesCount() > 0 ? product.getImages(0).getUri() : null;
+            if (product == null) continue;
+            String id = product.getName() != null ? product.getName() : "";
+            String title = product.getTitle() != null ? product.getTitle() : "";
+            String desc = product.getDescription() != null ? product.getDescription() : "";
+            String price = "";
+            if (product.hasPriceInfo()) {
+                double p = product.getPriceInfo().getPrice();
+                price = p > 0 ? String.format("$%.2f", p) : "";
+            }
+            String imageUri = null;
+            if (product.getImagesCount() > 0) {
+                var img = product.getImages(0);
+                imageUri = img != null ? img.getUri() : null;
+            }
             results.add(new AgentResponse.ProductResult(id, title, desc, price, imageUri));
         }
         return results;

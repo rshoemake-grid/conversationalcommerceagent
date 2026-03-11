@@ -4,10 +4,14 @@ import com.conversationalcommerce.agent.agent.ConversationalCommerceClient;
 import com.google.adk.tools.Annotations.Schema;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * ADK FunctionTool that invokes the Conversational Commerce API for product search.
  * Used by the ADK orchestrator agent when it needs to search products.
+ * <p>
+ * Uses static configuration (set once at startup via {@link #configure}) because
+ * ADK FunctionTool.create() requires static methods. Configured in AdkConfig @PostConstruct.
  */
 public class ConversationalCommerceTool {
 
@@ -41,7 +45,7 @@ public class ConversationalCommerceTool {
                     "queryType", result.queryType() != null ? result.queryType() : "UNKNOWN"
             );
         } catch (Exception e) {
-            return Map.of("status", "error", "message", e.getMessage());
+            return Map.of("status", "error", "message", Objects.toString(e.getMessage(), "Unknown error"));
         }
     }
 }

@@ -6,3 +6,6 @@
 
 # Local config - copy from application.yml.example
 backend/src/main/resources/application.yml
+
+# Build output
+target/

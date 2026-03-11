@@ -12,7 +12,7 @@ import java.util.Map;
  * Delegates to Convo Commerce first, then optionally to ADK specialists based on query type.
  */
 @Service
-public class ConvoCommerceOrchestrator {
+public class ConvoCommerceOrchestrator implements ChatOrchestrator {
 
     private final ConversationalAgent conversationalCommerceAgent;
     private final GeneralQuestionHandler generalQuestionSpecialist;
@@ -47,7 +47,7 @@ public class ConvoCommerceOrchestrator {
     }
 
     private AgentResponse mergeResponses(AgentResponse convo, AgentResponse specialist) {
-        String mergedText = convo.text();
+        String mergedText = convo.text() != null ? convo.text() : "";
         if (specialist.text() != null && !specialist.text().isEmpty()) {
             mergedText = mergedText + "\n\n" + specialist.text();
         }

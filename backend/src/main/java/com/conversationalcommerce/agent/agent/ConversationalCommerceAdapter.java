@@ -1,6 +1,7 @@
 package com.conversationalcommerce.agent.agent;
 
 import com.conversationalcommerce.agent.config.ConversationalCommerceConfig;
+import com.conversationalcommerce.agent.orchestration.ContextUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -66,10 +67,6 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
     }
 
     private String getVisitorId(Map<String, Object> context) {
-        if (context != null && context.containsKey("visitorId")) {
-            Object v = context.get("visitorId");
-            return v != null ? v.toString() : config.defaultVisitorId();
-        }
-        return config.defaultVisitorId();
+        return ContextUtils.getVisitorId(context, config.defaultVisitorId());
     }
 }

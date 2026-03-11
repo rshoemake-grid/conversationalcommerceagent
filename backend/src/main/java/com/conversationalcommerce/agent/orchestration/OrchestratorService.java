@@ -12,8 +12,8 @@ import java.util.Map;
 @Service
 public class OrchestratorService {
 
-    private final ConvoCommerceOrchestrator convoCommerceOrchestrator;
-    private final AdkOrchestrator adkOrchestrator;
+    private final ChatOrchestrator convoCommerceOrchestrator;
+    private final ChatOrchestrator adkOrchestrator;
 
     public OrchestratorService(ConvoCommerceOrchestrator convoCommerceOrchestrator, AdkOrchestrator adkOrchestrator) {
         this.convoCommerceOrchestrator = convoCommerceOrchestrator;
