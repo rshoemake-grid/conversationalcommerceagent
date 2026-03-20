@@ -16,13 +16,16 @@ public interface ConversationalCommerceClient {
             String branch,
             String query,
             String visitorId,
-            String conversationId
+            String conversationId,
+            String imageBase64
     ) {}
 
+    /** Source of the response: "agent" = GCP Conversational Commerce API, "app" = app fallback */
     record ConversationalCommerceResult(
             String text,
             String conversationId,
             String refinedQuery,
-            String queryType
+            String queryType,
+            String source
     ) {}
 }

@@ -2,7 +2,7 @@ package com.conversationalcommerce.agent.agent;
 
 import com.conversationalcommerce.agent.config.ConversationalCommerceConfig;
 import com.google.cloud.retail.v2beta.*;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -13,7 +13,7 @@ import java.util.List;
  * Requires conversational-commerce.enabled=true and valid GCP credentials.
  */
 @Component
-@ConditionalOnProperty(name = "conversational-commerce.enabled", havingValue = "true")
+@ConditionalOnExpression("@environment.getProperty('conversational-commerce.transport', 'rest') != 'rest'")
 public class RetailConversationalSearchClient implements ConversationalCommerceClient {
 
     private final ConversationalSearchServiceClient client;
@@ -54,7 +54,10 @@ public class RetailConversationalSearchClient implements ConversationalCommerceC
                     queryType = response.getUserQueryTypes(0);
                 }
                 if (!response.getConversationalTextResponse().isEmpty()) {
-                    textParts.add(response.getConversationalTextResponse());
+                    String part = response.getConversationalTextResponse().trim();
+                    if (!part.isEmpty() && (textParts.isEmpty() || !textParts.get(textParts.size() - 1).equals(part))) {
+                        textParts.add(part);
+                    }
                 }
             }
         } finally {
@@ -62,12 +65,14 @@ public class RetailConversationalSearchClient implements ConversationalCommerceC
         }
 
         String text = String.join(" ", textParts);
+        String source = "agent";
         if (text.isEmpty()) {
             text = refinedQuery != null && !refinedQuery.isEmpty()
                     ? "Searching for: " + refinedQuery
-                    : "I'm here to help with your shopping. What are you looking for?";
+                    : "I didn't understand your response.";
+            source = "app";
         }
 
-        return new ConversationalCommerceResult(text, conversationId, refinedQuery, queryType);
+        return new ConversationalCommerceResult(text, conversationId, refinedQuery, queryType, source);
     }
 }

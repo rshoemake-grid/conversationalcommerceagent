@@ -20,11 +20,12 @@ public class OrchestratorService {
         this.adkOrchestrator = adkOrchestrator;
     }
 
-    public AgentResponse process(ChatRequest.OrchestrationMode mode, String message, String conversationId, String sessionId) {
-        var context = Map.<String, Object>of(
-                "visitorId", sessionId,
-                "sessionId", sessionId
-        );
+    public AgentResponse process(ChatRequest.OrchestrationMode mode, String message, String conversationId, String sessionId, String imageBase64) {
+        var context = new java.util.HashMap<String, Object>(Map.of("visitorId", sessionId, "sessionId", sessionId));
+        context.put("orchestrationMode", mode.name());
+        if (imageBase64 != null && !imageBase64.isBlank()) {
+            context.put("imageBase64", imageBase64);
+        }
 
         return switch (mode) {
             case convo_commerce -> convoCommerceOrchestrator.process(message, conversationId, context);

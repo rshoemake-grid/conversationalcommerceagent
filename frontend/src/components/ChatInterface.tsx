@@ -1,92 +1,106 @@
-import { useState, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { ModeSelector } from './ModeSelector';
 import { MessageList } from './MessageList';
-import { sendChatMessage } from '../api/chatApi';
-import type { OrchestrationMode, ProductDto } from '../api/types';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  products?: ProductDto[];
-}
+import { VoiceInput } from './VoiceInput';
+import { ImageInput } from './ImageInput';
+import { VoiceOutputToggle } from './VoiceOutputToggle';
+import { useChat } from '../hooks/useChat';
 
 export function ChatInterface() {
-  const [mode, setMode] = useState<OrchestrationMode>('convo_commerce');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
-  const [sessionId] = useState(() => `session-${Date.now()}`);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const {
+    mode,
+    setMode,
+    messages,
+    input,
+    setInput,
+    pendingImage,
+    loading,
+    voiceOutputEnabled,
+    setVoiceOutputEnabled,
+    isSpeaking,
+    stopSpeaking,
+    handleSend,
+    handleVoiceResult,
+    handleImageSelect,
+    clearPendingImage,
+    handleRetry,
+    handleDismissError,
+    startNewConversation,
+  } = useChat();
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-
-    setInput('');
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', content: text },
-    ]);
-    setLoading(true);
-
-    try {
-      const response = await sendChatMessage({
-        mode,
-        message: text,
-        conversationId,
-        sessionId,
-      });
-
-      setConversationId(response.conversationId);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          content: response.text,
-          products: response.products,
-        },
-      ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `e-${Date.now()}`,
-          role: 'assistant',
-          content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        },
-      ]);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!loading && inputRef.current) {
+      inputRef.current.focus();
     }
-  }, [input, loading, mode, conversationId, sessionId]);
+  }, [loading]);
 
   return (
     <div className="chat-interface">
       <header className="chat-header">
         <h1>Conversational Commerce Agent</h1>
-        <ModeSelector
-          value={mode}
-          onChange={setMode}
-          disabled={loading}
-        />
+        <div className="chat-header__controls">
+          <button
+            type="button"
+            onClick={startNewConversation}
+            disabled={loading}
+            className="chat-header__new-conversation"
+            aria-label="Start new conversation"
+            title="Start new conversation"
+          >
+            New conversation
+          </button>
+          <ModeSelector
+            value={mode}
+            onChange={setMode}
+            disabled={loading}
+          />
+          <VoiceOutputToggle
+            enabled={voiceOutputEnabled}
+            onToggle={setVoiceOutputEnabled}
+            isSpeaking={isSpeaking}
+            onStop={stopSpeaking}
+            disabled={loading}
+          />
+        </div>
       </header>
 
-      <MessageList messages={messages} />
+      <MessageList
+        messages={messages}
+        loading={loading}
+        onRetry={handleRetry}
+        onDismissError={handleDismissError}
+      />
 
       <div className="chat-input-area">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-          placeholder="Type your message..."
-          disabled={loading}
-        />
-        <button onClick={handleSend} disabled={loading}>
-          {loading ? 'Sending...' : 'Send'}
-        </button>
+        <div className="chat-input-area__row">
+          {pendingImage && (
+            <div className="chat-input-area__preview">
+              <img src={pendingImage.startsWith('data:') ? pendingImage : `data:image/jpeg;base64,${pendingImage}`} alt="Preview" className="chat-input-area__preview-img" />
+              <button type="button" onClick={clearPendingImage} className="chat-input-area__preview-remove" aria-label="Remove image">×</button>
+            </div>
+          )}
+          <div className="chat-input-area__inputs">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              placeholder="Type your message..."
+              disabled={loading}
+              aria-label="Chat message"
+              aria-busy={loading}
+            />
+            <div className="chat-input-area__buttons">
+              <VoiceInput onResult={handleVoiceResult} disabled={loading} />
+              <ImageInput onSelect={handleImageSelect} disabled={loading} />
+              <button onClick={handleSend} disabled={loading} aria-label={loading ? 'Sending message' : 'Send message'}>
+                {loading ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

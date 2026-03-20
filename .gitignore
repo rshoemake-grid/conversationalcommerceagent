@@ -9,3 +9,7 @@ backend/src/main/resources/application.yml
 
 # Build output
 target/
+**/target/
+
+# IDE
+.idea/

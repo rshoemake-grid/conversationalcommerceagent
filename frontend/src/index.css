@@ -10,6 +10,9 @@
   --muted: #8888a0;
   --accent: #6366f1;
   --accent-fg: #ffffff;
+  --error-bg: #3f1d1d;
+  --error-border: #7f2a2a;
+  --error-text: #fca5a5;
 
   color: var(--text);
   background-color: var(--bg-primary);
@@ -28,6 +31,9 @@
     --muted: #71717a;
     --accent: #4f46e5;
     --accent-fg: #ffffff;
+    --error-bg: #fef2f2;
+    --error-border: #fecaca;
+    --error-text: #b91c1c;
   }
 }
 

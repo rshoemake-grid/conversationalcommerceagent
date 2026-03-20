@@ -25,6 +25,7 @@ class ChatControllerTest {
         stubOrchestratorService = new StubOrchestratorService();
         var controller = new ChatController(stubOrchestratorService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
     }
@@ -81,7 +82,9 @@ class ChatControllerTest {
                                   "message": "hello"
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation Error"))
+                .andExpect(jsonPath("$.detail").exists());
     }
 
     @Test
@@ -94,11 +97,31 @@ class ChatControllerTest {
                                   "message": ""
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation Error"))
+                .andExpect(jsonPath("$.detail").exists());
+    }
+
+    @Test
+    void chat_returns500WithProblemDetailWhenOrchestratorThrows() throws Exception {
+        stubOrchestratorService.setThrowOnNext(true);
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "mode": "convo_commerce",
+                                  "message": "hello"
+                                }
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Internal Server Error"))
+                .andExpect(jsonPath("$.detail").value("Simulated failure"));
     }
 
     private static class StubOrchestratorService extends OrchestratorService {
         private AgentResponse nextResponse;
+        private boolean throwOnNext;
 
         StubOrchestratorService() {
             super(null, null);
@@ -108,8 +131,15 @@ class ChatControllerTest {
             this.nextResponse = r;
         }
 
+        void setThrowOnNext(boolean b) {
+            this.throwOnNext = b;
+        }
+
         @Override
-        public AgentResponse process(OrchestrationMode mode, String message, String conversationId, String sessionId) {
+        public AgentResponse process(OrchestrationMode mode, String message, String conversationId, String sessionId, String imageBase64) {
+            if (throwOnNext) {
+                throw new RuntimeException("Simulated failure");
+            }
             return nextResponse != null ? nextResponse : AgentResponse.builder().text("").conversationId("").build();
         }
     }

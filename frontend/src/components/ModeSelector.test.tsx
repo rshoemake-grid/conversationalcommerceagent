@@ -17,4 +17,9 @@ describe('ModeSelector', () => {
     await userEvent.selectOptions(screen.getByRole('combobox'), 'adk_orchestrator')
     expect(onChange).toHaveBeenCalledWith('adk_orchestrator')
   })
+
+  it('disables combobox when disabled prop is true', () => {
+    render(<ModeSelector value="convo_commerce" onChange={() => {}} disabled />)
+    expect(screen.getByRole('combobox')).toBeDisabled()
+  })
 })

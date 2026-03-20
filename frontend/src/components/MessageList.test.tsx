@@ -1,0 +1,314 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MessageList } from './MessageList'
+
+describe('MessageList', () => {
+  it('shows empty state when no messages', () => {
+    render(<MessageList messages={[]} />)
+    expect(screen.getByLabelText('No messages yet')).toBeInTheDocument()
+    expect(screen.getByText(/Send a message to get started/)).toBeInTheDocument()
+  })
+
+  it('renders user message', () => {
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'Hello there' },
+        ]}
+      />
+    )
+    expect(screen.getByText('You')).toBeInTheDocument()
+    expect(screen.getByText('Hello there')).toBeInTheDocument()
+  })
+
+  it('renders user message with image when imageUri is present', () => {
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: '[Image]', imageUri: 'data:image/png;base64,abc123' },
+        ]}
+      />
+    )
+    const img = screen.getByRole('img', { name: 'Attached' })
+    expect(img).toHaveAttribute('src', 'data:image/png;base64,abc123')
+  })
+
+  it('renders user message with image', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'user',
+            content: '[Image]',
+            imageUri: 'data:image/png;base64,abc123',
+          },
+        ]}
+      />
+    )
+    const img = screen.getByRole('img', { name: 'Attached' })
+    expect(img).toHaveAttribute('src', 'data:image/png;base64,abc123')
+  })
+
+  it('renders user message with attached image', () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: '[Image]', imageUri: dataUrl },
+        ]}
+      />
+    )
+    const img = screen.getByRole('img', { name: 'Attached' })
+    expect(img).toHaveAttribute('src', dataUrl)
+  })
+
+  it('renders user message with attached image', () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'Find similar', imageUri: dataUrl },
+        ]}
+      />
+    )
+    expect(screen.getByText('You')).toBeInTheDocument()
+    const img = screen.getByRole('img', { name: 'Attached' })
+    expect(img).toHaveAttribute('src', dataUrl)
+  })
+
+  it('renders assistant message', () => {
+    render(
+      <MessageList
+        messages={[
+          { id: '2', role: 'assistant', content: 'Hi! How can I help?' },
+        ]}
+      />
+    )
+    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('Hi! How can I help?')).toBeInTheDocument()
+  })
+
+  it('labels app fallbacks as Application', () => {
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'assistant', content: "I'm here to help with your shopping.", source: 'app' },
+        ]}
+      />
+    )
+    expect(screen.getByText('Application')).toBeInTheDocument()
+    expect(screen.queryByText('Assistant')).not.toBeInTheDocument()
+  })
+
+  it('labels agent responses as Assistant (agent)', () => {
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'assistant', content: 'Here are some options.', source: 'agent' },
+        ]}
+      />
+    )
+    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.getByText('(agent)')).toBeInTheDocument()
+  })
+
+  it('renders multiple messages in order', () => {
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'Show me shoes' },
+          { id: '2', role: 'assistant', content: 'Here are some options.' },
+        ]}
+      />
+    )
+    expect(screen.getByText('Show me shoes')).toBeInTheDocument()
+    expect(screen.getByText('Here are some options.')).toBeInTheDocument()
+  })
+
+  it('renders product cards when products are present', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Here are some shoes',
+            products: [
+              {
+                id: 'p1',
+                title: 'Nike Run',
+                description: 'Running shoes',
+                price: '$99',
+                imageUri: 'http://example.com/img.png',
+              },
+            ],
+          },
+        ]}
+      />
+    )
+    expect(screen.getByText('Products')).toBeInTheDocument()
+    expect(screen.getByText('Nike Run')).toBeInTheDocument()
+    expect(screen.getByText('Running shoes')).toBeInTheDocument()
+    expect(screen.getByText('$99')).toBeInTheDocument()
+    const img = screen.getByRole('img', { name: 'Nike Run' })
+    expect(img).toHaveAttribute('src', 'http://example.com/img.png')
+  })
+
+  it('uses key fallback when product id is missing', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Products',
+            products: [
+              { id: '', title: 'No ID Product', description: '', price: '' },
+            ],
+          },
+        ]}
+      />
+    )
+    expect(screen.getByText('No ID Product')).toBeInTheDocument()
+  })
+
+  it('does not render products section when products array is empty', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'No results',
+            products: [],
+          },
+        ]}
+      />
+    )
+    expect(screen.queryByText('Products')).not.toBeInTheDocument()
+  })
+
+  it('sets aria-busy when loading', () => {
+    const { container } = render(
+      <MessageList messages={[]} loading={true} />
+    )
+    const list = container.querySelector('[role="log"]')
+    expect(list).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('shows loading spinner when loading', () => {
+    render(<MessageList messages={[]} loading={true} />)
+    expect(screen.getByText('Searching...')).toBeInTheDocument()
+    expect(document.querySelector('.message__spinner')).toBeInTheDocument()
+  })
+
+  it('renders error message with Retry and Dismiss buttons', () => {
+    const onRetry = vi.fn()
+    const onDismissError = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'hello' },
+          { id: '2', role: 'assistant', content: 'Network error', isError: true },
+        ]}
+        onRetry={onRetry}
+        onDismissError={onDismissError}
+      />
+    )
+    expect(screen.getByText('Network error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Retry sending message/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Dismiss error/i })).toBeInTheDocument()
+  })
+
+  it('calls onRetry with message text and error id when Retry clicked', async () => {
+    const onRetry = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'retry me' },
+          { id: 'e1', role: 'assistant', content: 'Failed', isError: true },
+        ]}
+        onRetry={onRetry}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Retry sending message/i }))
+    expect(onRetry).toHaveBeenCalledWith('retry me', 'e1', undefined)
+  })
+
+  it('calls onRetry with imageBase64 when retrying image message', async () => {
+    const onRetry = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: '[Image]', imageUri: 'data:image/jpeg;base64,xyz', imageBase64: 'xyz' },
+          { id: 'e1', role: 'assistant', content: 'Failed', isError: true },
+        ]}
+        onRetry={onRetry}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Retry sending message/i }))
+    expect(onRetry).toHaveBeenCalledWith('[Image]', 'e1', 'xyz')
+  })
+
+  it('calls onRetry with imageBase64 when retrying image message', async () => {
+    const onRetry = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'user',
+            content: '[Image]',
+            imageUri: 'data:image/png;base64,abc',
+            imageBase64: 'abc',
+          },
+          { id: 'e1', role: 'assistant', content: 'Failed', isError: true },
+        ]}
+        onRetry={onRetry}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Retry sending message/i }))
+    expect(onRetry).toHaveBeenCalledWith('[Image]', 'e1', 'abc')
+  })
+
+  it('calls onRetry with imageBase64 when retrying image message', async () => {
+    const onRetry = vi.fn()
+    const base64 = 'abc123'
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: '[Image]', imageBase64: base64 },
+          { id: 'e1', role: 'assistant', content: 'Failed', isError: true },
+        ]}
+        onRetry={onRetry}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Retry sending message/i }))
+    expect(onRetry).toHaveBeenCalledWith('[Image]', 'e1', base64)
+  })
+
+  it('calls onDismissError when Dismiss clicked', async () => {
+    const onDismissError = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'hi' },
+          { id: 'e1', role: 'assistant', content: 'Error', isError: true },
+        ]}
+        onDismissError={onDismissError}
+      />
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Dismiss error/i }))
+    expect(onDismissError).toHaveBeenCalledWith('e1')
+  })
+
+  it('sets aria-busy false when not loading', () => {
+    const { container } = render(
+      <MessageList messages={[]} loading={false} />
+    )
+    const list = container.querySelector('[role="log"]')
+    expect(list).toHaveAttribute('aria-busy', 'false')
+  })
+})

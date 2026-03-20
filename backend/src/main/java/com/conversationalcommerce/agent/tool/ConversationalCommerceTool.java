@@ -36,7 +36,7 @@ public class ConversationalCommerceTool {
         }
         try {
             var request = new ConversationalCommerceClient.ConversationalCommerceRequest(
-                    placement, branch, query, defaultVisitorId, "");
+                    placement, branch, query, defaultVisitorId, "", null);
             var result = client.search(request);
             return Map.of(
                     "status", "success",

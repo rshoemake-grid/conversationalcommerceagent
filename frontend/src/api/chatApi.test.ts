@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { sendChatMessage } from './chatApi'
-import type { ChatRequest } from './types'
 
 describe('chatApi', () => {
   beforeEach(() => {
@@ -40,5 +39,68 @@ describe('chatApi', () => {
 
     await expect(sendChatMessage({ mode: 'adk_orchestrator', message: 'x' }))
       .rejects.toThrow()
+  })
+
+  it('parses RFC 7807 JSON error and throws with detail', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({ title: 'Validation Error', detail: 'message: must not be blank' })
+        ),
+    } as Response)
+
+    await expect(sendChatMessage({ mode: 'convo_commerce', message: '' })).rejects.toThrow(
+      'message: must not be blank'
+    )
+  })
+
+  it('parses RFC 7807 JSON error and uses title when detail is missing', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+      text: () => Promise.resolve(JSON.stringify({ title: 'Validation Error' })),
+    } as Response)
+
+    await expect(sendChatMessage({ mode: 'convo_commerce', message: 'hi' })).rejects.toThrow(
+      'Validation Error'
+    )
+  })
+
+  it('falls back to plain text when response is not JSON', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers({ 'Content-Type': 'text/plain' }),
+      text: () => Promise.resolve('Internal Server Error'),
+    } as Response)
+
+    await expect(sendChatMessage({ mode: 'convo_commerce', message: 'hi' })).rejects.toThrow(
+      'Internal Server Error'
+    )
+  })
+
+  it('falls back to HTTP status when response body is empty', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 502,
+      headers: new Headers(),
+      text: () => Promise.resolve(''),
+    } as Response)
+
+    await expect(sendChatMessage({ mode: 'convo_commerce', message: 'hi' })).rejects.toThrow(
+      'HTTP 502'
+    )
+  })
+
+  it('throws helpful message when fetch fails with network error', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('Failed to fetch'))
+
+    await expect(sendChatMessage({ mode: 'convo_commerce', message: 'hi' })).rejects.toThrow(
+      'Cannot reach the API'
+    )
   })
 })

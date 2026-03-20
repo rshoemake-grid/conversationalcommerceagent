@@ -31,6 +31,20 @@ class ChatResponseTest {
         assertThat(response.products().get(0).description()).isEqualTo("Running shoes");
         assertThat(response.products().get(0).price()).isEqualTo("$99");
         assertThat(response.products().get(0).imageUri()).isEqualTo("http://img/1");
+        assertThat(response.source()).isEqualTo("agent");
+    }
+
+    @Test
+    void from_mapsSource() {
+        var agentResponse = AgentResponse.builder()
+                .text("App fallback")
+                .conversationId("c1")
+                .source("app")
+                .build();
+
+        ChatResponse response = ChatResponse.from(agentResponse);
+
+        assertThat(response.source()).isEqualTo("app");
     }
 
     @Test

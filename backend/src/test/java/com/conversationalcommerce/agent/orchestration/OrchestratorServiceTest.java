@@ -36,7 +36,8 @@ class OrchestratorServiceTest {
                 ChatRequest.OrchestrationMode.convo_commerce,
                 "hello",
                 "conv-0",
-                "session-123"
+                "session-123",
+                null
         );
 
         assertThat(result.text()).isEqualTo("Convo response");
@@ -56,7 +57,8 @@ class OrchestratorServiceTest {
                 ChatRequest.OrchestrationMode.adk_orchestrator,
                 "search shoes",
                 "conv-1",
-                "visitor-456"
+                "visitor-456",
+                null
         );
 
         assertThat(result.text()).isEqualTo("ADK response");
@@ -73,11 +75,27 @@ class OrchestratorServiceTest {
                 ChatRequest.OrchestrationMode.convo_commerce,
                 "hi",
                 null,
-                "my-session-id"
+                "my-session-id",
+                null
         );
 
         assertThat(convoOrchestrator.lastContext.get("visitorId")).isEqualTo("my-session-id");
         assertThat(convoOrchestrator.lastContext.get("sessionId")).isEqualTo("my-session-id");
+    }
+
+    @Test
+    void process_passesOrchestrationModeInContext() {
+        convoOrchestrator.setNextResponse(AgentResponse.builder().text("ok").conversationId("x").build());
+
+        orchestratorService.process(
+                ChatRequest.OrchestrationMode.convo_commerce,
+                "hi",
+                null,
+                "session-1",
+                null
+        );
+
+        assertThat(convoOrchestrator.lastContext.get("orchestrationMode")).isEqualTo("convo_commerce");
     }
 
     private static class StubChatOrchestrator implements ChatOrchestrator {
@@ -104,7 +122,7 @@ class OrchestratorServiceTest {
         private final ChatOrchestrator delegate;
 
         ConvoCommerceOrchestratorWrapper(ChatOrchestrator delegate) {
-            super(null, null);
+            super(null);
             this.delegate = delegate;
         }
 

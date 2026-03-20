@@ -30,10 +30,22 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- Override transitive Guava to 33.4.8+ to fix sun.misc.Unsafe deprecation warning on Java 24+ -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>33.4.8-jre</version>
+        </dependency>
         <dependency>
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-retail</artifactId>
             <version>2.76.0</version>
+        </dependency>
+        <!-- Conscrypt: alternative ALPN provider for gRPC when "Failed ALPN negotiation" occurs (VPN/proxy) -->
+        <dependency>
+            <groupId>org.conscrypt</groupId>
+            <artifactId>conscrypt-openjdk-uber</artifactId>
+            <version>2.5.2</version>
         </dependency>
         <dependency>
             <groupId>com.google.adk</groupId>
@@ -57,6 +69,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- TLS/ALPN fix for gRPC when "Failed ALPN negotiation" occurs (VPN/proxy) -->
+                    <jvmArguments>-Djdk.tls.client.protocols=TLSv1.2,TLSv1.3 --add-opens java.base/java.lang=ALL-UNNAMED</jvmArguments>
+                </configuration>
             </plugin>
         </plugins>
     </build>

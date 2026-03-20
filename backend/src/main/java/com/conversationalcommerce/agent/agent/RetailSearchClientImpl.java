@@ -1,17 +1,18 @@
 package com.conversationalcommerce.agent.agent;
 
 import com.google.cloud.retail.v2beta.*;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Real implementation using GCP Retail SearchServiceClient.
+ * Real implementation using GCP Retail SearchServiceClient (gRPC).
+ * Only active when transport != rest; use RetailSearchClientRest for REST.
  */
 @Component
-@ConditionalOnProperty(name = "conversational-commerce.enabled", havingValue = "true")
+@ConditionalOnExpression("@environment.getProperty('conversational-commerce.transport', 'rest') != 'rest'")
 public class RetailSearchClientImpl implements RetailSearchClient {
 
     private final SearchServiceClient client;

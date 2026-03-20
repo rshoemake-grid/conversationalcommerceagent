@@ -4,13 +4,15 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 # Start backend in background
 echo "Starting backend on http://localhost:8080..."
 cd "$ROOT/backend"
-./mvnw spring-boot:run -q &
+# TLS/ALPN fix for gRPC (helps with "Failed ALPN negotiation" behind VPN/proxy)
+export MAVEN_OPTS="-Djdk.tls.client.protocols=TLSv1.2,TLSv1.3 ${MAVEN_OPTS:-}"
+./mvnw spring-boot:run -q -Dmaven.resources.skip=true &
 BACKEND_PID=$!
 
 # Wait for backend to be ready
 echo "Waiting for backend to start..."
 for i in $(seq 1 30); do
-  if curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d '{"mode":"convo_commerce","message":"hi"}' http://localhost:8080/api/chat 2>/dev/null | grep -qE '^2[0-9]{2}$'; then
+  if curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "Referer: http://localhost:5173/" -d '{"mode":"convo_commerce","message":"hi"}' http://localhost:8080/api/chat 2>/dev/null | grep -qE '^2[0-9]{2}$'; then
     echo "Backend ready."
     break
   fi

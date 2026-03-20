@@ -18,11 +18,17 @@ A full-stack application (Spring Boot + React) that provides a chat UI to intera
 
 ### Run both (recommended)
 
+**Linux/macOS:**
 ```bash
 ./run-app.sh
 ```
 
-Starts the backend (http://localhost:8080) and frontend (http://localhost:5173). Press Ctrl+C to stop.
+**Windows:**
+```cmd
+run-app.bat
+```
+
+Starts the backend (http://localhost:8080) and frontend (http://localhost:5173). On Windows, close the Backend and Frontend windows to stop.
 
 ### Or run separately
 
@@ -31,8 +37,9 @@ Starts the backend (http://localhost:8080) and frontend (http://localhost:5173).
 cd backend
 ./mvnw spring-boot:run
 ```
+Windows: `run-backend.bat`
 
-The API runs at http://localhost:8080. By default, GCP is disabled and stub responses are returned.
+The API runs at http://localhost:8080. GCP credentials and project config are required for product search (see CONFIG.md).
 
 **Frontend:**
 ```bash
@@ -40,6 +47,7 @@ cd frontend
 npm install
 npm run dev
 ```
+Windows: `run-frontend.bat`
 
 The UI runs at http://localhost:5173 and proxies `/api` to the backend.
 
@@ -59,6 +67,13 @@ See **[CONFIG.md](CONFIG.md)** for full details. Summary:
 
 ## Running Tests
 
+**All tests (backend + frontend):**
+```bash
+./run-tests.sh
+```
+Windows: `run-tests.bat`
+
+**Backend only:**
 ```bash
 cd backend
 ./mvnw test

@@ -5,23 +5,27 @@ server:
 app:
   cors:
     allowed-origins: "*"
+  gcp:
+    # GCP credentials path. Override with GOOGLE_APPLICATION_CREDENTIALS env var.
+    credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:C:/Users/rsho0016/AppData/Roaming/gcloud/application_default_credentials.json}
 
-# REST API docs
+# REST API docs (default: /v3/api-docs, /swagger-ui/index.html)
 springdoc:
   api-docs:
     path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
 
 spring:
   application:
     name: conversational-commerce-agent
 
-# GCP Conversational Commerce - copy this file to application.yml and configure.
-# Set enabled=true when you have GCP credentials and Retail catalog configured.
+# GCP Conversational Commerce - always enabled
+# transport: "rest" (default) or "grpc" - rest bypasses ALPN/VPN issues
+# Set project-id (or GCP_PROJECT_ID); placement and branch derive from it when not overridden.
 conversational-commerce:
-  enabled: ${CONVERSATIONAL_COMMERCE_ENABLED:false}
+  transport: ${CONVERSATIONAL_COMMERCE_TRANSPORT:rest}
   project-id: ${GCP_PROJECT_ID:your-project-id}
-  placement: ${GCP_PLACEMENT:projects/your-project-id/locations/global/catalogs/default_catalog/placements/default_search}
-  branch: ${GCP_BRANCH:projects/your-project-id/locations/global/catalogs/default_catalog/branches/default_branch}
+  placement: ${GCP_PLACEMENT:projects/${conversational-commerce.project-id}/locations/global/catalogs/default_catalog/placements/default_search}
+  branch: ${GCP_BRANCH:projects/${conversational-commerce.project-id}/locations/global/catalogs/default_catalog/branches/default_branch}
   default-visitor-id: default-visitor
+  # ENABLED lets the agent ask follow-up questions. Requires GCP Console setup (see CONFIG.md).
+  conversational-filtering-mode: ${CONVERSATIONAL_FILTERING_MODE:DISABLED}

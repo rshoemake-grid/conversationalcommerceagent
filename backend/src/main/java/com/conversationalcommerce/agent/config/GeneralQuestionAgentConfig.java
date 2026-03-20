@@ -3,13 +3,16 @@ package com.conversationalcommerce.agent.config;
 import com.conversationalcommerce.agent.agent.AgentResponse;
 import com.google.adk.agents.LlmAgent;
 import com.google.adk.events.Event;
+import com.google.adk.models.Gemini;
 import com.google.adk.runner.InMemoryRunner;
 import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import io.reactivex.rxjava3.core.Flowable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,10 +25,43 @@ public class GeneralQuestionAgentConfig {
 
     private static final String APP_NAME = "general_question_specialist";
 
+    @Value("${app.gemini.model:gemini-flash-latest}")
+    private String model;
+
+    @Value("${app.gemini.api-key:}")
+    private String apiKeyFromConfig;
+
+    private final Environment environment;
+    private final GeminiClientFactory clientFactory;
+
+    public GeneralQuestionAgentConfig(Environment environment, GeminiClientFactory clientFactory) {
+        this.environment = environment;
+        this.clientFactory = clientFactory;
+    }
+
+    private String getRawApiKey() {
+        if (apiKeyFromConfig != null && !apiKeyFromConfig.isBlank()) {
+            return apiKeyFromConfig;
+        }
+        return environment.getProperty("GOOGLE_API_KEY");
+    }
+
     @Bean
     public LlmAgent generalQuestionAgent() {
-        return LlmAgent.builder()
-                .model("gemini-2.0-flash")
+        var builder = LlmAgent.builder();
+        String rawKey = getRawApiKey();
+        String sanitizedKey = ApiKeySanitizer.sanitize(rawKey);
+        if (sanitizedKey != null && !sanitizedKey.isBlank()) {
+            var geminiModel = Gemini.builder()
+                    .modelName(model)
+                    .apiClient(clientFactory.buildClient(sanitizedKey))
+                    .build();
+            builder.model(geminiModel);
+        } else {
+            builder.model(model);
+        }
+
+        return builder
                 .name("general_question_specialist")
                 .instruction("""
                     You are a helpful store assistant for general questions. Answer concisely.

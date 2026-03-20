@@ -4,13 +4,15 @@ import java.util.List;
 
 /**
  * Response from a conversational agent.
+ * @param source "agent" = Conversational Commerce or ADK agent, "app" = app-generated fallback
  */
 public record AgentResponse(
         String text,
         String conversationId,
         String refinedQuery,
         List<ProductResult> products,
-        String queryType
+        String queryType,
+        String source
 ) {
     public static Builder builder() {
         return new Builder();
@@ -22,6 +24,7 @@ public record AgentResponse(
         private String refinedQuery;
         private List<ProductResult> products;
         private String queryType;
+        private String source;
 
         public Builder text(String text) {
             this.text = text;
@@ -48,8 +51,13 @@ public record AgentResponse(
             return this;
         }
 
+        public Builder source(String source) {
+            this.source = source;
+            return this;
+        }
+
         public AgentResponse build() {
-            return new AgentResponse(text, conversationId, refinedQuery, products, queryType);
+            return new AgentResponse(text, conversationId, refinedQuery, products, queryType, source != null ? source : "agent");
         }
     }
 

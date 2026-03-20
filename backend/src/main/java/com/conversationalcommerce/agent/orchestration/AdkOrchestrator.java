@@ -8,7 +8,6 @@ import com.google.adk.sessions.Session;
 import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import io.reactivex.rxjava3.core.Flowable;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,18 +17,31 @@ import java.util.Optional;
 /**
  * Approach B: ADK agent as orchestrator.
  * ADK agent has tools including Conversational Commerce, delegates as needed.
+ * When GOOGLE_API_KEY is not set, returns a placeholder response.
+ * Bean is created by AdkConfig.
  */
-@Service
 public class AdkOrchestrator implements ChatOrchestrator {
 
     private static final String APP_NAME = "conversational_commerce";
+
+    private static final ChatOrchestrator STUB_WHEN_NO_API_KEY = new StubOrchestrator();
+
+    private static class StubOrchestrator implements ChatOrchestrator {
+        @Override
+        public AgentResponse process(String message, String conversationId, Map<String, Object> context) {
+            return AgentResponse.builder()
+                    .text("Set GOOGLE_API_KEY to use Approach B (ADK orchestrator).")
+                    .conversationId(conversationId != null ? conversationId : "")
+                    .build();
+        }
+    }
 
     private final LlmAgent adkOrchestratorAgent;
     private final InMemoryRunner runner;
     private final ChatOrchestrator testDelegate;
 
     public AdkOrchestrator(LlmAgent adkOrchestratorAgent) {
-        this(adkOrchestratorAgent, null);
+        this(adkOrchestratorAgent, adkOrchestratorAgent == null ? STUB_WHEN_NO_API_KEY : null);
     }
 
     /**

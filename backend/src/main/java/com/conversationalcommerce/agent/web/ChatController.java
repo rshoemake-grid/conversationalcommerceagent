@@ -20,14 +20,15 @@ public class ChatController {
         this.orchestratorService = orchestratorService;
     }
 
-    @Operation(summary = "Send a chat message", description = "Processes a message using the selected orchestration mode (convo_commerce or adk_orchestrator)")
+    @Operation(summary = "Send a chat message", description = "Processes a message using the selected orchestration mode. Supports text, voice (as text), and image (base64) inputs.")
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
         var response = orchestratorService.process(
                 request.mode(),
                 request.message(),
                 request.conversationId(),
-                request.sessionId() != null ? request.sessionId() : UUID.randomUUID().toString()
+                request.sessionId() != null ? request.sessionId() : UUID.randomUUID().toString(),
+                request.imageBase64()
         );
         return ResponseEntity.ok(ChatResponse.from(response));
     }

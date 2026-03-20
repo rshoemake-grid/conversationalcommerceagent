@@ -1,3 +1,3 @@
-# Test profile - use stub implementations, no GCP/ADK
+# Test profile - minimal config
 conversational-commerce:
-  enabled: false
+  transport: rest

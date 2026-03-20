@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,6 +18,7 @@ class ConvoCommerceOrchestratorTest {
 
     private ConvoCommerceOrchestrator orchestrator;
     private StubConversationalCommerceClient stubClient;
+    private StubRetailSearchClient stubSearchClient;
 
     @BeforeEach
     void setUp() {
@@ -25,16 +27,18 @@ class ConvoCommerceOrchestratorTest {
         config.setBranch("projects/p/branches/default");
 
         stubClient = new StubConversationalCommerceClient();
-        var adapter = new ConversationalCommerceAdapter(stubClient, new StubRetailSearchClient(), config);
-        var specialist = new StubGeneralQuestionSpecialist();
-
-        orchestrator = new ConvoCommerceOrchestrator(adapter, specialist);
+        stubSearchClient = new StubRetailSearchClient();
+        var adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.empty());
+        orchestrator = new ConvoCommerceOrchestrator(adapter);
     }
 
     @Test
     void process_returnsConvoResponseForProductSearch() {
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
-                "Here are shoes", "conv-1", "shoes", "SIMPLE_PRODUCT_SEARCH"));
+                "Here are shoes", "conv-1", "shoes", "SIMPLE_PRODUCT_SEARCH", "agent"));
+        stubSearchClient.setProducts(List.of(
+                new AgentResponse.ProductResult("p1", "Nike Run", "Running shoes", "$99", null)
+        ));
 
         AgentResponse r = orchestrator.process("shoes", "", Map.of());
 
@@ -42,14 +46,13 @@ class ConvoCommerceOrchestratorTest {
     }
 
     @Test
-    void process_invokesSpecialistForGeneralQuestion() {
+    void process_returnsConvoResponseForGeneralQuestion() {
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
-                "General question", "conv-1", null, "GENERAL_QUESTION"));
+                "General question", "conv-1", null, "GENERAL_QUESTION", "agent"));
 
         AgentResponse r = orchestrator.process("store hours?", "", Map.of());
 
         assertThat(r.text()).contains("General question");
-        assertThat(r.text()).contains("Specialist");
     }
 
     private static class StubConversationalCommerceClient implements ConversationalCommerceClient {
@@ -61,21 +64,20 @@ class ConvoCommerceOrchestratorTest {
 
         @Override
         public ConversationalCommerceResult search(ConversationalCommerceRequest request) {
-            return nextResult != null ? nextResult : new ConversationalCommerceResult("", "", null, null);
+            return nextResult != null ? nextResult : new ConversationalCommerceResult("", "", null, null, "agent");
         }
     }
 
     private static class StubRetailSearchClient implements RetailSearchClient {
+        List<AgentResponse.ProductResult> products = List.of();
+
+        void setProducts(List<AgentResponse.ProductResult> products) {
+            this.products = products;
+        }
+
         @Override
         public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId) {
-            return List.of();
-        }
-    }
-
-    private static class StubGeneralQuestionSpecialist implements GeneralQuestionHandler {
-        @Override
-        public AgentResponse handle(String message, Map<String, Object> context) {
-            return AgentResponse.builder().text("Specialist: store hours 9-9").build();
+            return products;
         }
     }
 }

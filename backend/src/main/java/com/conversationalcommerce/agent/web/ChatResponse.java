@@ -8,11 +8,12 @@ public record ChatResponse(
         String text,
         String conversationId,
         String refinedQuery,
-        List<ProductDto> products
+        List<ProductDto> products,
+        String source
 ) {
     public static ChatResponse from(AgentResponse r) {
         if (r == null) {
-            return new ChatResponse("", "", null, List.of());
+            return new ChatResponse("", "", null, List.of(), "agent");
         }
         List<ProductDto> products = r.products() != null
                 ? r.products().stream()
@@ -28,7 +29,8 @@ public record ChatResponse(
                 r.text() != null ? r.text() : "",
                 r.conversationId() != null ? r.conversationId() : "",
                 r.refinedQuery(),
-                products
+                products,
+                r.source() != null ? r.source() : "agent"
         );
     }
 
