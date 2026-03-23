@@ -173,7 +173,8 @@ class ChatControllerTest {
         public AgentResponse process(OrchestrationMode mode, String message, String conversationId, String sessionId,
                                      String imageBase64, Integer maxSuggestedAnswers, String previousAssistantText,
                                      List<ChatRequest.SuggestedAnswerInput> previousSuggestedAnswers,
-                                     String previousRefinedQuery, String productPageToken, String previousProductFilter) {
+                                     String previousRefinedQuery, String productPageToken, String previousProductFilter,
+                                     Integer productPageSize) {
             if (throwOnNext) {
                 throw new RuntimeException("Simulated failure");
             }

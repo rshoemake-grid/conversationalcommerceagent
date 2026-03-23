@@ -90,13 +90,13 @@ class BrandDisplayResolverTest {
 
     private static class StubSearchClient implements RetailSearchClient {
         @Override
-        public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
-            if (filter != null && filter.contains("NIKE")) {
-                return List.of(new AgentResponse.ProductResult(
-                        null, "Test", null, null, null, null, null,
-                        null, List.of("Nike"), null, null, null, null, null, false));
-            }
-            return List.of();
+        public SearchResult searchWithPagination(String placement, String branch, String query, String visitorId, String filter, String pageToken, Integer pageSizeOverride) {
+            List<AgentResponse.ProductResult> list = (filter != null && filter.contains("NIKE"))
+                    ? List.of(new AgentResponse.ProductResult(
+                            null, "Test", null, null, null, null, null,
+                            null, List.of("Nike"), null, null, null, null, null, false))
+                    : List.of();
+            return SearchResult.of(list);
         }
     }
 }

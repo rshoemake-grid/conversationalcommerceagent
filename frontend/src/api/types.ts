@@ -71,6 +71,8 @@ export interface ChatRequest {
   productPageToken?: string;
   /** Filter from previous product response (for load-more) */
   previousProductFilter?: string;
+  /** Products per page (null = use backend config default) */
+  productPageSize?: number;
 }
 
 export interface ChatResponse {

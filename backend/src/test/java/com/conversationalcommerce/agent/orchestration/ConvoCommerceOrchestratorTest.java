@@ -1,6 +1,7 @@
 package com.conversationalcommerce.agent.orchestration;
 
 import com.conversationalcommerce.agent.agent.AgentResponse;
+import com.conversationalcommerce.agent.agent.SearchResult;
 import com.conversationalcommerce.agent.agent.ConversationalCommerceAdapter;
 import com.conversationalcommerce.agent.agent.ConversationalCommerceClient;
 import com.conversationalcommerce.agent.agent.ProductEnrichmentService;
@@ -77,8 +78,8 @@ class ConvoCommerceOrchestratorTest {
         }
 
         @Override
-        public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
-            return products;
+        public SearchResult searchWithPagination(String placement, String branch, String query, String visitorId, String filter, String pageToken, Integer pageSizeOverride) {
+            return SearchResult.of(products);
         }
     }
 }

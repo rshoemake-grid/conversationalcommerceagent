@@ -261,7 +261,7 @@ class ConversationalCommerceAdapterTest {
         AgentResponse response = adapter.sendMessage("", "what other options?", Map.of());
 
         assertThat(response.products()).hasSize(9);
-        assertThat(response.text()).contains("I found 9 products");
+        assertThat(response.text()).contains("Showing 9 of");
         assertThat(response.clarifyingQuestion()).contains("What type of shrimp are you looking for? Raw, cooked, or peeled?");
     }
 
@@ -287,7 +287,7 @@ class ConversationalCommerceAdapterTest {
         AgentResponse response = adapter.sendMessage("", "shoes", Map.of());
 
         assertThat(response.products()).hasSize(9);
-        assertThat(response.text()).contains("I found 9 products");
+        assertThat(response.text()).contains("Showing 9 of");
         assertThat(response.clarifyingQuestion()).contains("narrow it down");
     }
 
@@ -323,7 +323,7 @@ class ConversationalCommerceAdapterTest {
         AgentResponse response = adapter.sendMessage("", "shoes", context);
 
         assertThat(response.products()).hasSize(9);
-        assertThat(response.text()).contains("I found 9 products matching your request.");
+        assertThat(response.text()).contains("Showing 9 of");
         assertThat(response.clarifyingQuestion()).isEqualTo(apiResponse);
     }
 
@@ -353,7 +353,7 @@ class ConversationalCommerceAdapterTest {
         AgentResponse response = adapter.sendMessage("conv-1", "Any", context);
 
         assertThat(response.products()).hasSize(2);
-        assertThat(response.text()).isEqualTo("I found 2 products matching your request.");
+        assertThat(response.text()).contains("Showing 2 of");
         assertThat(response.refinedQuery()).isEqualTo("long grain white rice");
     }
 
@@ -401,7 +401,7 @@ class ConversationalCommerceAdapterTest {
         AgentResponse response = adapter.sendMessage("conv-1", "Any", context);
 
         assertThat(response.products()).hasSize(20);
-        assertThat(response.text()).isEqualTo("I found 20 products matching your request.");
+        assertThat(response.text()).contains("Showing 20 of");
     }
 
     @Test
@@ -461,13 +461,13 @@ class ConversationalCommerceAdapterTest {
         }
 
         @Override
-        public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
+        public SearchResult searchWithPagination(String placement, String branch, String query, String visitorId, String filter, String pageToken, Integer pageSizeOverride) {
             this.lastQuery = query;
             this.lastFilter = filter;
             if (returnEmptyWhenFilterContains != null && filter != null && filter.contains(returnEmptyWhenFilterContains)) {
-                return List.of();
+                return SearchResult.of(List.of());
             }
-            return products;
+            return SearchResult.of(products);
         }
     }
 
@@ -491,7 +491,7 @@ class ConversationalCommerceAdapterTest {
 
         assertThat(response.products()).hasSize(1);
         assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
-        assertThat(response.text()).isEqualTo("I found 1 product matching your request.");
+        assertThat(response.text()).contains("Showing 1 of");
         assertThat(response.suggestedAnswers()).isEmpty();
         assertThat(stubSearchClient.lastFilter).satisfiesAnyOf(
                 f -> assertThat(f).contains("stockType"),
@@ -592,7 +592,7 @@ class ConversationalCommerceAdapterTest {
 
         assertThat(response.products()).hasSize(1);
         assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
-        assertThat(response.text()).startsWith("I found 1 product matching your request.");
+        assertThat(response.text()).contains("Showing 1 of");
         assertThat(response.suggestedAnswers()).isEmpty();
         assertThat(stubSearchClient.lastQuery).isEqualTo("rice");
         assertThat(stubSearchClient.lastFilter).contains("stockType").contains("S");

@@ -41,6 +41,7 @@ public interface RetailSearchClient {
      * Search with pagination. Returns products, nextPageToken, and totalSize.
      *
      * @param pageToken optional token from a previous response to fetch next page
+     * @param pageSizeOverride optional page size (null = use config default)
      */
     default SearchResult searchWithPagination(
             String placement,
@@ -50,6 +51,17 @@ public interface RetailSearchClient {
             String filter,
             String pageToken
     ) {
-        return SearchResult.of(search(placement, branch, query, visitorId, filter));
+        return searchWithPagination(placement, branch, query, visitorId, filter, pageToken, null);
     }
+
+    /** Overload with page size override for per-request control. */
+    SearchResult searchWithPagination(
+            String placement,
+            String branch,
+            String query,
+            String visitorId,
+            String filter,
+            String pageToken,
+            Integer pageSizeOverride
+    );
 }

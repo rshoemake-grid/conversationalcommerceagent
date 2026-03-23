@@ -16,7 +16,8 @@ public record ChatRequest(
         @Schema(description = "Previous assistant suggested answers (for no-products fallback)") java.util.List<SuggestedAnswerInput> previousSuggestedAnswers,
         @Schema(description = "Previous refined query (for RETAIL_IRRELEVANT recovery when user says Any/no preference)") String previousRefinedQuery,
         @Schema(description = "Token for load-more (next page of products)") String productPageToken,
-        @Schema(description = "Filter from previous product response (for load-more)") String previousProductFilter
+        @Schema(description = "Filter from previous product response (for load-more)") String previousProductFilter,
+        @Schema(description = "Products per page (overrides config; null = use config default)") Integer productPageSize
 ) {
     public ChatRequest {
         message = message != null ? message : "";

@@ -13,15 +13,29 @@ function createUserMessage(text: string, imageUri?: string, imageBase64?: string
   };
 }
 
+function formatProductCount(shown: number, total?: number | null, isApproximate?: boolean): string {
+  if (total != null && total >= 0) {
+    const prefix = isApproximate ? 'at least ' : '';
+    return shown === 1
+      ? `Showing 1 of ${prefix}${total} product`
+      : `Showing ${shown} of ${prefix}${total} products`;
+  }
+  return shown === 1 ? 'Showing 1 product' : `Showing ${shown} products`;
+}
+
 function createAssistantMessage(response: { text?: string; products?: Message['products']; refinedQuery?: string; source?: Message['source']; queryType?: string; suggestedAnswers?: SuggestedAnswer[]; rawResponse?: string | null; productTotalSize?: number; productTotalSizeIsApproximate?: boolean; productNextPageToken?: string | null; productFilter?: string | null; clarifyingQuestion?: string | null }): Message {
   let text = (response.text ?? '').trim();
   const products = response.products ?? [];
   const refinedQuery = response.refinedQuery ?? '';
+  const total = response.productTotalSize;
+  const isApprox = response.productTotalSizeIsApproximate ?? false;
   // When we have products but text is "Searching for:" placeholder, show count instead
   if (products.length > 0 && text.startsWith('Searching for:')) {
-    text = products.length === 1
-      ? 'I found 1 product matching your request.'
-      : `I found ${products.length} products matching your request.`;
+    text = formatProductCount(products.length, total, isApprox);
+  }
+  // Normalize "I found N products matching your request" to "Showing X of Y products" when we have total
+  else if (products.length > 0 && total != null && total >= 0 && /^I found \d+ product(s)? matching your request\.$/.test(text)) {
+    text = formatProductCount(products.length, total, isApprox);
   }
   // When no products and text is placeholder or empty, show explicit no-results message
   else if (products.length === 0 && refinedQuery && (text === '' || text.startsWith('Searching for:'))) {
@@ -177,10 +191,12 @@ function extractSuggestedAnswersFromRaw(rawJson: string | null | undefined): str
 
 const DEFAULT_MAX_SUGGESTED_ANSWERS = 8;
 const MAX_SUGGESTED_ANSWERS_CAP = 50;
+const DEFAULT_PRODUCT_PAGE_SIZE = 20;
 
 export function useChat() {
   const [mode, setMode] = useState<OrchestrationMode>('convo_commerce');
   const [maxSuggestedAnswers, setMaxSuggestedAnswers] = useState(DEFAULT_MAX_SUGGESTED_ANSWERS);
+  const [productPageSize, setProductPageSize] = useState(DEFAULT_PRODUCT_PAGE_SIZE);
   const [messages, setMessages] = useState<Message[]>([]);
   const [rawResponseHistory, setRawResponseHistory] = useState<Array<{ rawResponse?: string | null; fallbackResponse?: ChatResponse | null }>>([]);
   const [input, setInput] = useState('');
@@ -242,6 +258,7 @@ export function useChat() {
           previousRefinedQuery: options?.previousRefinedQuery,
           productPageToken: options?.productPageToken,
           previousProductFilter: options?.previousProductFilter,
+          productPageSize: productPageSize > 0 ? productPageSize : undefined,
         });
         if (response.conversationId != null && response.conversationId !== '') {
           conversationIdRef.current = response.conversationId;
@@ -318,7 +335,7 @@ export function useChat() {
         setLoading(false);
       }
     },
-    [loading, mode, maxSuggestedAnswers, sessionId, voiceOutputEnabled, speak]
+    [loading, mode, maxSuggestedAnswers, productPageSize, sessionId, voiceOutputEnabled, speak]
   );
 
   const handleSend = useCallback(() => {
@@ -460,6 +477,8 @@ export function useChat() {
     maxSuggestedAnswers,
     setMaxSuggestedAnswers,
     maxSuggestedAnswersCap: MAX_SUGGESTED_ANSWERS_CAP,
+    productPageSize,
+    setProductPageSize,
     messages,
     rawResponseHistory,
     input,

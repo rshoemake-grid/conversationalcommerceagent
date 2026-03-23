@@ -1,6 +1,7 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { ModeSelector } from './ModeSelector';
 import { MaxSuggestedAnswersControl } from './MaxSuggestedAnswersControl';
+import { PageSizeControl } from './PageSizeControl';
 import { MessageList } from './MessageList';
 import { VoiceInput } from './VoiceInput';
 import { ImageInput } from './ImageInput';
@@ -10,12 +11,15 @@ import { useChat } from '../hooks/useChat';
 
 export function ChatInterface() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showRawOutput, setShowRawOutput] = useState(true);
   const {
     mode,
     setMode,
     maxSuggestedAnswers,
     setMaxSuggestedAnswers,
     maxSuggestedAnswersCap,
+    productPageSize,
+    setProductPageSize,
     messages,
     rawResponseHistory,
     input,
@@ -71,6 +75,11 @@ export function ChatInterface() {
             max={maxSuggestedAnswersCap}
             disabled={loading}
           />
+          <PageSizeControl
+            value={productPageSize}
+            onChange={setProductPageSize}
+            disabled={loading}
+          />
           <VoiceOutputToggle
             enabled={voiceOutputEnabled}
             onToggle={setVoiceOutputEnabled}
@@ -78,6 +87,15 @@ export function ChatInterface() {
             onStop={stopSpeaking}
             disabled={loading}
           />
+          <button
+            type="button"
+            onClick={() => setShowRawOutput((v) => !v)}
+            className="chat-header__toggle-raw"
+            aria-label={showRawOutput ? 'Hide raw output' : 'Show raw output'}
+            title={showRawOutput ? 'Hide raw API response panel' : 'Show raw API response panel'}
+          >
+            {showRawOutput ? 'Hide raw output' : 'Show raw output'}
+          </button>
         </div>
       </header>
 
@@ -123,9 +141,11 @@ export function ChatInterface() {
         </div>
       </div>
       </div>
-      <aside className="raw-response-sidebar">
-        <RawResponsePanel history={rawResponseHistory} />
-      </aside>
+      {showRawOutput && (
+        <aside className="raw-response-sidebar">
+          <RawResponsePanel history={rawResponseHistory} />
+        </aside>
+      )}
     </div>
   );
 }

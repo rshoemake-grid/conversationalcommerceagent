@@ -154,6 +154,15 @@ describe('ChatInterface', () => {
     expect(screen.getByText('hi')).toBeInTheDocument()
   })
 
+  it('toggles raw output panel visibility', async () => {
+    render(<ChatInterface />)
+    expect(screen.getByText('Raw API Response')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Hide raw output/i }))
+    expect(screen.queryByText('Raw API Response')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Show raw output/i }))
+    expect(screen.getByText('Raw API Response')).toBeInTheDocument()
+  })
+
   it('sends with selected mode when changed', async () => {
     vi.mocked(chatApi.sendChatMessage).mockResolvedValue({
       text: 'OK',

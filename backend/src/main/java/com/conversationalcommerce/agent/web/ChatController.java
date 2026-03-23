@@ -34,7 +34,8 @@ public class ChatController {
                 request.previousSuggestedAnswers(),
                 request.previousRefinedQuery(),
                 request.productPageToken(),
-                request.previousProductFilter()
+                request.previousProductFilter(),
+                request.productPageSize()
         );
         return ResponseEntity.ok(ChatResponse.from(response));
     }

@@ -39,7 +39,7 @@ public class RetailSearchClientRest implements RetailSearchClient {
 
     @Override
     public SearchResult searchWithPagination(String placement, String branch, String query, String visitorId,
-                                             String filter, String pageToken) {
+                                             String filter, String pageToken, Integer pageSizeOverride) {
         String url = BASE_URL + "/" + placement + ":search";
         String filterJson = (filter != null && !filter.isBlank())
                 ? ", \"filter\": \"" + escapeJson(filter) + "\""
@@ -47,7 +47,9 @@ public class RetailSearchClientRest implements RetailSearchClient {
         String pageTokenJson = (pageToken != null && !pageToken.isBlank())
                 ? ", \"pageToken\": \"" + escapeJson(pageToken) + "\""
                 : "";
-        int pageSize = config != null ? config.productSearchPageSize() : 20;
+        int pageSize = pageSizeOverride != null && pageSizeOverride > 0
+                ? pageSizeOverride
+                : (config != null ? config.productSearchPageSize() : 20);
         String body = """
                 {
                   "branch": "%s",

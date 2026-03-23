@@ -28,8 +28,10 @@ public class RetailSearchClientImpl implements RetailSearchClient {
 
     @Override
     public SearchResult searchWithPagination(String placement, String branch, String query, String visitorId,
-                                             String filter, String pageToken) {
-        int pageSize = config != null ? config.productSearchPageSize() : 20;
+                                             String filter, String pageToken, Integer pageSizeOverride) {
+        int pageSize = pageSizeOverride != null && pageSizeOverride > 0
+                ? pageSizeOverride
+                : (config != null ? config.productSearchPageSize() : 20);
         var reqBuilder = SearchRequest.newBuilder()
                 .setPlacement(placement)
                 .setBranch(branch)

@@ -23,7 +23,8 @@ public class OrchestratorService {
     public AgentResponse process(ChatRequest.OrchestrationMode mode, String message, String conversationId, String sessionId,
                                  String imageBase64, Integer maxSuggestedAnswers, String previousAssistantText,
                                  java.util.List<ChatRequest.SuggestedAnswerInput> previousSuggestedAnswers,
-                                 String previousRefinedQuery, String productPageToken, String previousProductFilter) {
+                                 String previousRefinedQuery, String productPageToken, String previousProductFilter,
+                                 Integer productPageSize) {
         var context = new java.util.HashMap<String, Object>(Map.of("visitorId", sessionId, "sessionId", sessionId));
         context.put("orchestrationMode", mode.name());
         if (imageBase64 != null && !imageBase64.isBlank()) {
@@ -48,6 +49,9 @@ public class OrchestratorService {
         }
         if (previousProductFilter != null && !previousProductFilter.isBlank()) {
             context.put("previousProductFilter", previousProductFilter.trim());
+        }
+        if (productPageSize != null && productPageSize > 0) {
+            context.put("productPageSize", productPageSize);
         }
 
         return switch (mode) {

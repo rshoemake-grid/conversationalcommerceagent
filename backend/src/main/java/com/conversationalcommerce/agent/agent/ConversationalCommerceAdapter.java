@@ -48,6 +48,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         String productPageToken = (String) context.get("productPageToken");
         String prevRefinedForLoadMore = (String) context.get("previousRefinedQuery");
         String prevFilter = (String) context.get("previousProductFilter");
+        Integer productPageSizeOverride = context.get("productPageSize") instanceof Number n ? n.intValue() : null;
 
         // Load more: skip conversational API, fetch next page directly
         if (productPageToken != null && !productPageToken.isBlank() && prevRefinedForLoadMore != null && !prevRefinedForLoadMore.isBlank()) {
@@ -55,13 +56,14 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                 SearchResult sr = searchClient.searchWithPagination(
                         config.placement(), config.branch(), prevRefinedForLoadMore.trim(), visitorId,
                         prevFilter != null && !prevFilter.isBlank() ? prevFilter : null,
-                        productPageToken);
+                        productPageToken,
+                        productPageSizeOverride);
                 var prods = enrichmentService.enrich(sr.products());
                 String countText = prods.isEmpty() ? "No more products." : (prods.size() == 1 ? "1 more product." : prods.size() + " more products.");
                 long totalSize = sr.totalSize();
                 boolean totalSizeIsApproximate = false;
                 if (totalSize < 0 && !prods.isEmpty()) {
-                    int pageSize = config.productSearchPageSize();
+                    int pageSize = getEffectivePageSize(productPageSizeOverride);
                     totalSize = prods.size() + (sr.nextPageToken() != null && !sr.nextPageToken().isBlank() ? pageSize : 0);
                     totalSizeIsApproximate = true;
                 }
@@ -145,7 +147,8 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                         searchQuery,
                         visitorId,
                         filter,
-                        pageToken
+                        pageToken,
+                        productPageSizeOverride
                 );
                 products = enrichmentService.enrich(searchResult.products());
             } catch (Exception e) {
@@ -359,11 +362,19 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         String nextPageToken = searchResult != null ? searchResult.nextPageToken() : null;
         boolean totalSizeIsApproximate = false;
         if (totalSize < 0 && productsToReturn != null && !productsToReturn.isEmpty()) {
-            int pageSize = config.productSearchPageSize();
+            int pageSize = getEffectivePageSize(productPageSizeOverride);
             int pagesEstimate = (int) Math.ceil((double) productsToReturn.size() / pageSize)
                     + (nextPageToken != null && !nextPageToken.isBlank() ? 1 : 0);
             totalSize = Math.max(productsToReturn.size(), (long) pagesEstimate * pageSize);
             totalSizeIsApproximate = true;
+        }
+        // Normalize "I found N products" to "Showing N of Y products" when we have totalSize
+        if (totalSize >= 0 && productsToReturn != null && !productsToReturn.isEmpty()
+                && text != null && text.matches("I found \\d+ product(s)? matching your request\\.")) {
+            String prefix = totalSizeIsApproximate ? "at least " : "";
+            text = productsToReturn.size() == 1
+                    ? "Showing 1 of " + prefix + totalSize + " product"
+                    : "Showing " + productsToReturn.size() + " of " + prefix + totalSize + " products";
         }
         return AgentResponse.builder()
                 .text(text)
@@ -389,6 +400,11 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
 
     private String getVisitorId(Map<String, Object> context) {
         return ContextUtils.getVisitorId(context, config.defaultVisitorId());
+    }
+
+    private int getEffectivePageSize(Integer override) {
+        if (override != null && override > 0) return override;
+        return config.productSearchPageSize();
     }
 
     /** Expand short codes (e.g. F, C) to canonical values before sending to GCP to avoid RETAIL_IRRELEVANT. */
