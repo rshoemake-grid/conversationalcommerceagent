@@ -73,6 +73,6 @@ public class RetailConversationalSearchClient implements ConversationalCommerceC
             source = "app";
         }
 
-        return new ConversationalCommerceResult(text, conversationId, refinedQuery, queryType, source);
+        return new ConversationalCommerceResult(text, conversationId, refinedQuery, queryType, source, null, List.of());
     }
 }

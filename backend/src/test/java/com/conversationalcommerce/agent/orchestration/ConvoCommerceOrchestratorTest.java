@@ -35,9 +35,9 @@ class ConvoCommerceOrchestratorTest {
     @Test
     void process_returnsConvoResponseForProductSearch() {
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
-                "Here are shoes", "conv-1", "shoes", "SIMPLE_PRODUCT_SEARCH", "agent"));
+                "Here are shoes", "conv-1", "shoes", "SIMPLE_PRODUCT_SEARCH", "agent", null, List.of()));
         stubSearchClient.setProducts(List.of(
-                new AgentResponse.ProductResult("p1", "Nike Run", "Running shoes", "$99", null)
+                AgentResponse.ProductResult.of("p1", "Nike Run", "Running shoes", "$99", null)
         ));
 
         AgentResponse r = orchestrator.process("shoes", "", Map.of());
@@ -48,7 +48,7 @@ class ConvoCommerceOrchestratorTest {
     @Test
     void process_returnsConvoResponseForGeneralQuestion() {
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
-                "General question", "conv-1", null, "GENERAL_QUESTION", "agent"));
+                "General question", "conv-1", null, "GENERAL_QUESTION", "agent", null, List.of()));
 
         AgentResponse r = orchestrator.process("store hours?", "", Map.of());
 
@@ -64,7 +64,7 @@ class ConvoCommerceOrchestratorTest {
 
         @Override
         public ConversationalCommerceResult search(ConversationalCommerceRequest request) {
-            return nextResult != null ? nextResult : new ConversationalCommerceResult("", "", null, null, "agent");
+            return nextResult != null ? nextResult : new ConversationalCommerceResult("", "", null, null, "agent", null, List.of());
         }
     }
 
@@ -76,7 +76,7 @@ class ConvoCommerceOrchestratorTest {
         }
 
         @Override
-        public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId) {
+        public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
             return products;
         }
     }

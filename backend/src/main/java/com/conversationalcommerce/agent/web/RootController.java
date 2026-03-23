@@ -2,20 +2,32 @@ package com.conversationalcommerce.agent.web;
 
 import java.net.URI;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Handles root and favicon requests so they are served instead of triggering
- * NoResourceFoundException from the static resource handler.
+ * Handles root and favicon requests. When app.serve-frontend=true (e.g. in Docker),
+ * serves the SPA index.html; otherwise redirects to Swagger UI.
  */
 @RestController
 public class RootController {
 
+    @Value("${app.serve-frontend:false}")
+    private boolean serveFrontend;
+
     @GetMapping("/")
-    public ResponseEntity<Void> root() {
+    public ResponseEntity<?> root() {
+        if (serveFrontend) {
+            Resource index = new ClassPathResource("static/index.html");
+            if (index.exists()) {
+                return ResponseEntity.ok().body(index);
+            }
+        }
         return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/swagger-ui/index.html")).build();
     }
 

@@ -28,7 +28,10 @@ public class ChatController {
                 request.message(),
                 request.conversationId(),
                 request.sessionId() != null ? request.sessionId() : UUID.randomUUID().toString(),
-                request.imageBase64()
+                request.imageBase64(),
+                request.maxSuggestedAnswers(),
+                request.previousAssistantText(),
+                request.previousSuggestedAnswers()
         );
         return ResponseEntity.ok(ChatResponse.from(response));
     }

@@ -37,6 +37,9 @@ class OrchestratorServiceTest {
                 "hello",
                 "conv-0",
                 "session-123",
+                null,
+                null,
+                null,
                 null
         );
 
@@ -58,6 +61,9 @@ class OrchestratorServiceTest {
                 "search shoes",
                 "conv-1",
                 "visitor-456",
+                null,
+                null,
+                null,
                 null
         );
 
@@ -76,6 +82,9 @@ class OrchestratorServiceTest {
                 "hi",
                 null,
                 "my-session-id",
+                null,
+                null,
+                null,
                 null
         );
 
@@ -92,10 +101,31 @@ class OrchestratorServiceTest {
                 "hi",
                 null,
                 "session-1",
+                null,
+                null,
+                null,
                 null
         );
 
         assertThat(convoOrchestrator.lastContext.get("orchestrationMode")).isEqualTo("convo_commerce");
+    }
+
+    @Test
+    void process_passesMaxSuggestedAnswersInContextWhenProvided() {
+        convoOrchestrator.setNextResponse(AgentResponse.builder().text("ok").conversationId("x").build());
+
+        orchestratorService.process(
+                ChatRequest.OrchestrationMode.convo_commerce,
+                "hi",
+                null,
+                "session-1",
+                null,
+                5,
+                null,
+                null
+        );
+
+        assertThat(convoOrchestrator.lastContext.get("maxSuggestedAnswers")).isEqualTo(5);
     }
 
     private static class StubChatOrchestrator implements ChatOrchestrator {

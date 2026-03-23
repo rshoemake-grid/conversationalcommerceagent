@@ -1,18 +1,25 @@
 import { memo, useEffect, useRef } from 'react';
 import type { Message } from '../api/types';
+import { ProductCard } from './ProductCard';
 
 interface MessageListProps {
   messages: Message[];
   loading?: boolean;
+  maxSuggestedAnswers?: number;
   onRetry?: (messageText: string, errorId: string, imageBase64?: string) => void;
   onDismissError?: (messageId: string) => void;
+  onSuggestedAnswer?: (text: string) => void;
+  onGetMoreSuggestions?: () => void;
 }
 
 function MessageListComponent({
   messages,
   loading = false,
+  maxSuggestedAnswers,
   onRetry,
   onDismissError,
+  onSuggestedAnswer,
+  onGetMoreSuggestions,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +65,11 @@ function MessageListComponent({
                 {' '}(agent)
               </span>
             )}
+            {msg.role === 'assistant' && !msg.isError && msg.queryType && (
+              <span className="message__query-type" title="Query classification">
+                {' '}{msg.queryType}
+              </span>
+            )}
           </div>
           {msg.imageUri && msg.role === 'user' && (
             <div className="message__media">
@@ -93,23 +105,45 @@ function MessageListComponent({
               )}
             </div>
           )}
+          {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && (
+            <div className="message__suggested-answers">
+              {(maxSuggestedAnswers != null
+                ? msg.suggestedAnswers.slice(0, maxSuggestedAnswers)
+                : msg.suggestedAnswers
+              ).map((answer, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="message__suggested-answer"
+                  onClick={() => onSuggestedAnswer(answer.displayText)}
+                >
+                  {answer.displayText}
+                </button>
+              ))}
+              {onGetMoreSuggestions &&
+                msg.role === 'assistant' &&
+                !msg.isError &&
+                msg.suggestedAnswers &&
+                msg.suggestedAnswers.length > 0 &&
+                msg.id === [...messages].reverse().find((m) => m.role === 'assistant' && m.suggestedAnswers?.length)?.id && (
+                  <button
+                    type="button"
+                    className="message__get-more-suggestions"
+                    onClick={onGetMoreSuggestions}
+                    disabled={loading}
+                    aria-label="Get more suggested answers"
+                  >
+                    Get more suggestions
+                  </button>
+                )}
+            </div>
+          )}
           {msg.products && msg.products.length > 0 && (
             <div className="message__products">
               <h4>Products</h4>
               <div className="product-grid">
                 {msg.products.map((p, idx) => (
-                  <div key={p.id || `p-${idx}`} className="product-card">
-                    {p.imageUri && (
-                      <img src={p.imageUri} alt={p.title} className="product-card__image" />
-                    )}
-                    <div className="product-card__title">{p.title}</div>
-                    {p.description && (
-                      <div className="product-card__desc">{p.description}</div>
-                    )}
-                    {p.price && (
-                      <div className="product-card__price">{p.price}</div>
-                    )}
-                  </div>
+                  <ProductCard key={p.id || `p-${idx}`} product={p} index={idx} />
                 ))}
               </div>
             </div>

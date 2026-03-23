@@ -15,6 +15,10 @@ public class ConversationalCommerceConfig {
     private String transport = "rest";
     /** "DISABLED" (default), "ENABLED", or "CONVERSATIONAL_FILTER_ONLY". ENABLED lets the agent ask follow-up questions. */
     private String conversationalFilteringMode = "DISABLED";
+    /** Map attribute name -> (value -> display name) for suggested answers. E.g. brands: {NIKE: Nike, ADIDAS: Adidas} */
+    private java.util.Map<String, java.util.Map<String, String>> attributeDisplayMapping = new java.util.HashMap<>();
+    /** Map attribute name -> (short/user input -> canonical API value). Expands before sending to GCP when short codes cause RETAIL_IRRELEVANT. */
+    private java.util.Map<String, java.util.Map<String, String>> attributeValueExpansion = new java.util.HashMap<>();
 
     public String projectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId != null ? projectId : ""; }
@@ -36,5 +40,19 @@ public class ConversationalCommerceConfig {
     }
     public void setConversationalFilteringMode(String mode) {
         this.conversationalFilteringMode = mode != null ? mode : "DISABLED";
+    }
+
+    public java.util.Map<String, java.util.Map<String, String>> getAttributeDisplayMapping() {
+        return attributeDisplayMapping != null ? attributeDisplayMapping : new java.util.HashMap<>();
+    }
+    public void setAttributeDisplayMapping(java.util.Map<String, java.util.Map<String, String>> mapping) {
+        this.attributeDisplayMapping = mapping != null ? mapping : new java.util.HashMap<>();
+    }
+
+    public java.util.Map<String, java.util.Map<String, String>> getAttributeValueExpansion() {
+        return attributeValueExpansion != null ? attributeValueExpansion : new java.util.HashMap<>();
+    }
+    public void setAttributeValueExpansion(java.util.Map<String, java.util.Map<String, String>> expansion) {
+        this.attributeValueExpansion = expansion != null ? expansion : new java.util.HashMap<>();
     }
 }

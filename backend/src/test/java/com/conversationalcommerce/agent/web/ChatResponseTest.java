@@ -16,7 +16,7 @@ class ChatResponseTest {
                 .conversationId("conv-1")
                 .refinedQuery("running shoes")
                 .products(List.of(
-                        new AgentResponse.ProductResult("p1", "Nike Run", "Running shoes", "$99", "http://img/1")
+                        AgentResponse.ProductResult.of("p1", "Nike Run", "Running shoes", "$99", "http://img/1")
                 ))
                 .build();
 

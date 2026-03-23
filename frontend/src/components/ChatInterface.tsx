@@ -1,9 +1,11 @@
 import { useRef, useEffect } from 'react';
 import { ModeSelector } from './ModeSelector';
+import { MaxSuggestedAnswersControl } from './MaxSuggestedAnswersControl';
 import { MessageList } from './MessageList';
 import { VoiceInput } from './VoiceInput';
 import { ImageInput } from './ImageInput';
 import { VoiceOutputToggle } from './VoiceOutputToggle';
+import { RawResponsePanel } from './RawResponsePanel';
 import { useChat } from '../hooks/useChat';
 
 export function ChatInterface() {
@@ -11,7 +13,11 @@ export function ChatInterface() {
   const {
     mode,
     setMode,
+    maxSuggestedAnswers,
+    setMaxSuggestedAnswers,
+    maxSuggestedAnswersCap,
     messages,
+    rawResponseHistory,
     input,
     setInput,
     pendingImage,
@@ -22,10 +28,12 @@ export function ChatInterface() {
     stopSpeaking,
     handleSend,
     handleVoiceResult,
+    handleSuggestedAnswer,
     handleImageSelect,
     clearPendingImage,
     handleRetry,
     handleDismissError,
+    handleGetMoreSuggestions,
     startNewConversation,
   } = useChat();
 
@@ -36,8 +44,9 @@ export function ChatInterface() {
   }, [loading]);
 
   return (
-    <div className="chat-interface">
-      <header className="chat-header">
+    <div className="chat-layout">
+      <div className="chat-interface">
+        <header className="chat-header">
         <h1>Conversational Commerce Agent</h1>
         <div className="chat-header__controls">
           <button
@@ -55,6 +64,12 @@ export function ChatInterface() {
             onChange={setMode}
             disabled={loading}
           />
+          <MaxSuggestedAnswersControl
+            value={maxSuggestedAnswers}
+            onChange={setMaxSuggestedAnswers}
+            max={maxSuggestedAnswersCap}
+            disabled={loading}
+          />
           <VoiceOutputToggle
             enabled={voiceOutputEnabled}
             onToggle={setVoiceOutputEnabled}
@@ -68,8 +83,11 @@ export function ChatInterface() {
       <MessageList
         messages={messages}
         loading={loading}
+        maxSuggestedAnswers={maxSuggestedAnswers}
         onRetry={handleRetry}
         onDismissError={handleDismissError}
+        onSuggestedAnswer={handleSuggestedAnswer}
+        onGetMoreSuggestions={handleGetMoreSuggestions}
       />
 
       <div className="chat-input-area">
@@ -102,6 +120,10 @@ export function ChatInterface() {
           </div>
         </div>
       </div>
+      </div>
+      <aside className="raw-response-sidebar">
+        <RawResponsePanel history={rawResponseHistory} />
+      </aside>
     </div>
   );
 }

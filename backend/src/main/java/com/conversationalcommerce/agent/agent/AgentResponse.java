@@ -1,6 +1,7 @@
 package com.conversationalcommerce.agent.agent;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response from a conversational agent.
@@ -12,7 +13,9 @@ public record AgentResponse(
         String refinedQuery,
         List<ProductResult> products,
         String queryType,
-        String source
+        String source,
+        String rawResponse,
+        List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers
 ) {
     public static Builder builder() {
         return new Builder();
@@ -25,6 +28,8 @@ public record AgentResponse(
         private List<ProductResult> products;
         private String queryType;
         private String source;
+        private String rawResponse;
+        private List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers;
 
         public Builder text(String text) {
             this.text = text;
@@ -56,10 +61,40 @@ public record AgentResponse(
             return this;
         }
 
+        public Builder rawResponse(String rawResponse) {
+            this.rawResponse = rawResponse;
+            return this;
+        }
+
+        public Builder suggestedAnswers(List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers) {
+            this.suggestedAnswers = suggestedAnswers;
+            return this;
+        }
+
         public AgentResponse build() {
-            return new AgentResponse(text, conversationId, refinedQuery, products, queryType, source != null ? source : "agent");
+            return new AgentResponse(text, conversationId, refinedQuery, products, queryType, source != null ? source : "agent", rawResponse, suggestedAnswers);
         }
     }
 
-    public record ProductResult(String id, String title, String description, String price, String imageUri) {}
+    /** Product from search. id=resource name; productId=short id; gtin=UPC/GTIN. */
+    public record ProductResult(
+            String id,
+            String title,
+            String description,
+            String price,
+            String imageUri,
+            String gtin,
+            String productId,
+            List<String> categories,
+            List<String> brands,
+            String uri,
+            String availability,
+            List<String> sizes,
+            List<String> materials,
+            Map<String, Object> attributes
+    ) {
+        public static ProductResult of(String id, String title, String description, String price, String imageUri) {
+            return new ProductResult(id, title, description, price, imageUri, null, null, null, null, null, null, null, null, null);
+        }
+    }
 }

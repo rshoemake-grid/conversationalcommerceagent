@@ -26,6 +26,11 @@ public interface ConversationalCommerceClient {
             String conversationId,
             String refinedQuery,
             String queryType,
-            String source
+            String source,
+            String rawResponse,
+            java.util.List<SuggestedAnswer> suggestedAnswers
     ) {}
+
+    /** Display text for UI; value is sent to API for filtering */
+    record SuggestedAnswer(String displayText, String value) {}
 }

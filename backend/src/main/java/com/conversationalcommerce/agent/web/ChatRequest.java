@@ -10,12 +10,19 @@ public record ChatRequest(
         @Schema(description = "User message (required if no image)", example = "What running shoes do you have?") String message,
         @Schema(description = "Conversation ID for multi-turn") String conversationId,
         @Schema(description = "Session/visitor ID") String sessionId,
-        @Schema(description = "Optional image as base64 (multimodal search)") String imageBase64
+        @Schema(description = "Optional image as base64 (multimodal search)") String imageBase64,
+        @Schema(description = "Max suggested answers to return (null = no limit; frontend slices for display)") Integer maxSuggestedAnswers,
+        @Schema(description = "Previous assistant message text (for no-products fallback when user retries a suggested answer)") String previousAssistantText,
+        @Schema(description = "Previous assistant suggested answers (for no-products fallback)") java.util.List<SuggestedAnswerInput> previousSuggestedAnswers
 ) {
     public ChatRequest {
         message = message != null ? message : "";
         imageBase64 = imageBase64 != null && imageBase64.isBlank() ? null : imageBase64;
+        previousSuggestedAnswers = previousSuggestedAnswers != null ? previousSuggestedAnswers : java.util.List.of();
     }
+
+    @Schema(description = "Suggested answer for context (displayText, value)")
+    public record SuggestedAnswerInput(String displayText, String value) {}
 
     @AssertTrue(message = "Either message or imageBase64 must be provided")
     public boolean isValidInput() {

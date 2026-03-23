@@ -149,11 +149,105 @@ describe('MessageList', () => {
       />
     )
     expect(screen.getByText('Products')).toBeInTheDocument()
-    expect(screen.getByText('Nike Run')).toBeInTheDocument()
-    expect(screen.getByText('Running shoes')).toBeInTheDocument()
-    expect(screen.getByText('$99')).toBeInTheDocument()
+    expect(screen.getAllByText('Nike Run').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Running shoes').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('$99').length).toBeGreaterThanOrEqual(1)
     const img = screen.getByRole('img', { name: 'Nike Run' })
     expect(img).toHaveAttribute('src', 'http://example.com/img.png')
+  })
+
+  it('renders suggested answers when present and calls onSuggestedAnswer with displayText when clicked', async () => {
+    const onSuggestedAnswer = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'What type of shoes?',
+            suggestedAnswers: [
+              { displayText: 'Running shoes', value: 'Running shoes' },
+              { displayText: 'Casual shoes', value: 'Casual shoes' },
+              { displayText: 'Boots', value: 'Boots' },
+            ],
+          },
+        ]}
+        onSuggestedAnswer={onSuggestedAnswer}
+      />
+    )
+    expect(screen.getByText('Running shoes')).toBeInTheDocument()
+    expect(screen.getByText('Casual shoes')).toBeInTheDocument()
+    expect(screen.getByText('Boots')).toBeInTheDocument()
+    await userEvent.click(screen.getByText('Running shoes'))
+    expect(onSuggestedAnswer).toHaveBeenCalledWith('Running shoes')
+  })
+
+  it('slices suggested answers when maxSuggestedAnswers is set', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Options',
+            suggestedAnswers: [
+              { displayText: 'A', value: 'A' },
+              { displayText: 'B', value: 'B' },
+              { displayText: 'C', value: 'C' },
+              { displayText: 'D', value: 'D' },
+            ],
+          },
+        ]}
+        maxSuggestedAnswers={2}
+        onSuggestedAnswer={() => {}}
+      />
+    )
+    expect(screen.getByText('A')).toBeInTheDocument()
+    expect(screen.getByText('B')).toBeInTheDocument()
+    expect(screen.queryByText('C')).not.toBeInTheDocument()
+    expect(screen.queryByText('D')).not.toBeInTheDocument()
+  })
+
+  it('shows Get more suggestions button on last assistant message with suggestions', async () => {
+    const onGetMoreSuggestions = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          { id: '1', role: 'user', content: 'shoes' },
+          {
+            id: '2',
+            role: 'assistant',
+            content: 'What type?',
+            suggestedAnswers: [
+              { displayText: 'Running', value: 'Running' },
+            ],
+          },
+        ]}
+        onSuggestedAnswer={() => {}}
+        onGetMoreSuggestions={onGetMoreSuggestions}
+      />
+    )
+    const btn = screen.getByRole('button', { name: /Get more suggested answers/i })
+    expect(btn).toBeInTheDocument()
+    await userEvent.click(btn)
+    expect(onGetMoreSuggestions).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not render suggested answers when onSuggestedAnswer is not provided', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'What type?',
+            suggestedAnswers: [{ displayText: 'Option A', value: 'Option A' }],
+          },
+        ]}
+      />
+    )
+    expect(screen.getByText('What type?')).toBeInTheDocument()
+    expect(screen.queryByText('Option A')).not.toBeInTheDocument()
   })
 
   it('uses key fallback when product id is missing', () => {
@@ -171,7 +265,7 @@ describe('MessageList', () => {
         ]}
       />
     )
-    expect(screen.getByText('No ID Product')).toBeInTheDocument()
+    expect(screen.getAllByText('No ID Product').length).toBeGreaterThanOrEqual(1)
   })
 
   it('does not render products section when products array is empty', () => {

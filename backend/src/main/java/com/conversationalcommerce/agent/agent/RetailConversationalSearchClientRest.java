@@ -30,12 +30,15 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
 
     private final ConversationalCommerceConfig config;
     private final GcpCredentialsProvider credentialsProvider;
+    private final BrandDisplayResolver brandDisplayResolver;
     private final HttpClient httpClient;
 
     public RetailConversationalSearchClientRest(ConversationalCommerceConfig config,
-                                                GcpCredentialsProvider credentialsProvider) {
+                                                GcpCredentialsProvider credentialsProvider,
+                                                BrandDisplayResolver brandDisplayResolver) {
         this.config = config;
         this.credentialsProvider = credentialsProvider;
+        this.brandDisplayResolver = brandDisplayResolver;
         this.httpClient = HttpClient.newBuilder().build();
         log.info("Using REST transport for GCP Conversational Commerce (bypasses gRPC/ALPN)");
     }
@@ -116,44 +119,73 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
     @SuppressWarnings("unchecked")
     private ConversationalCommerceResult parseResponse(String json) {
         List<String> textParts = new ArrayList<>();
+        final List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers = new ArrayList<>();
         final String[] conversationId = {""};
         final String[] refinedQuery = {""};
         final String[] queryType = {""};
         final String[] followupQuestion = {""};
 
         try {
-            Object parsed = new com.fasterxml.jackson.databind.ObjectMapper().readValue(json, Object.class);
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            Object parsed = mapper.readValue(json, Object.class);
             if (parsed instanceof List<?> list) {
                 for (Object item : list) {
                     if (item instanceof Map<?, ?> m) {
-                        extractFromMap((Map<String, Object>) m, textParts,
+                        extractFromMap((Map<String, Object>) m, textParts, suggestedAnswers,
                                 s -> conversationId[0] = s, s -> refinedQuery[0] = s, s -> queryType[0] = s, s -> followupQuestion[0] = s);
                     }
                 }
             } else if (parsed instanceof Map<?, ?> m) {
-                extractFromMap((Map<String, Object>) m, textParts,
+                extractFromMap((Map<String, Object>) m, textParts, suggestedAnswers,
                         s -> conversationId[0] = s, s -> refinedQuery[0] = s, s -> queryType[0] = s, s -> followupQuestion[0] = s);
             }
         } catch (Exception e) {
-            log.warn("Failed to parse REST response, using raw: {}", e.getMessage());
+            // Streaming API may return NDJSON (newline-delimited JSON chunks)
+            try {
+                for (String line : json.split("\n")) {
+                    String trimmed = line.trim();
+                    if (trimmed.isEmpty()) continue;
+                    Object parsed = new com.fasterxml.jackson.databind.ObjectMapper().readValue(trimmed, Object.class);
+                    if (parsed instanceof Map<?, ?> m) {
+                        extractFromMap((Map<String, Object>) m, textParts, suggestedAnswers,
+                                s -> conversationId[0] = s, s -> refinedQuery[0] = s, s -> queryType[0] = s, s -> followupQuestion[0] = s);
+                    }
+                }
+            } catch (Exception e2) {
+                log.warn("Failed to parse REST response (tried single JSON and NDJSON): {}", e.getMessage());
+            }
         }
 
         String text = deduplicateText(String.join(" ", textParts));
         String source = "agent";
-        if (text.isEmpty() && !followupQuestion[0].isEmpty()) {
+        if ("RETAIL_IRRELEVANT".equals(queryType[0])) {
+            text = "I didn't understand your response.";
+            source = "app";
+        } else if (text.isEmpty() && !followupQuestion[0].isEmpty()) {
             text = followupQuestion[0];
         } else if (text.isEmpty()) {
-            text = refinedQuery[0] != null && !refinedQuery[0].isEmpty()
-                    ? "Searching for: " + refinedQuery[0]
-                    : "I didn't understand your response.";
+            if (refinedQuery[0] != null && !refinedQuery[0].isEmpty()) {
+                text = "Searching for: " + refinedQuery[0];
+            } else if ("SIMPLE_PRODUCT_SEARCH".equals(queryType[0])) {
+                text = "No products found.";
+            } else {
+                text = "I didn't understand your response.";
+            }
             source = "app";
         }
+        if (!followupQuestion[0].isEmpty() && !text.equals(followupQuestion[0])) {
+            text = text + "\n\n" + followupQuestion[0];
+        }
 
-        return new ConversationalCommerceResult(text, conversationId[0], refinedQuery[0], queryType[0], source);
+        if (!suggestedAnswers.isEmpty() && log.isInfoEnabled()) {
+            log.info("Parsed {} suggested answers: {}", suggestedAnswers.size(),
+                    suggestedAnswers.stream().map(ConversationalCommerceClient.SuggestedAnswer::displayText).toList());
+        }
+        return new ConversationalCommerceResult(text, conversationId[0], refinedQuery[0], queryType[0], source, json, suggestedAnswers);
     }
 
     @SuppressWarnings("unchecked")
-    private void extractFromMap(Map<String, Object> map, List<String> textParts,
+    private void extractFromMap(Map<String, Object> map, List<String> textParts, List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers,
                                java.util.function.Consumer<String> setConversationId,
                                java.util.function.Consumer<String> setRefinedQuery,
                                java.util.function.Consumer<String> setQueryType,
@@ -163,6 +195,21 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
         Map<String, Object> toScan = map;
         if (map.containsKey("conversationalSearchResult") && map.get("conversationalSearchResult") instanceof Map<?, ?> csr) {
             toScan = (Map<String, Object>) csr;
+        }
+        String refinedQueryForLookup = extractRefinedQueryFromMap(map, toScan);
+        // suggestedAnswers: from conversationalSearchResult or conversationalFilteringResult
+        extractSuggestedAnswers(toScan, suggestedAnswers, refinedQueryForLookup);
+        Object cfrObj = map.get("conversationalFilteringResult");
+        if (cfrObj == null) cfrObj = map.get("conversational_filtering_result");
+        if (cfrObj instanceof Map<?, ?> cfr) {
+            Map<String, Object> cfrMap = (Map<String, Object>) cfr;
+            extractSuggestedAnswers(cfrMap, suggestedAnswers, refinedQueryForLookup);
+            // Nested format: conversationalFilteringResult.followupQuestion.suggestedAnswers
+            Object fq = cfrMap.get("followupQuestion");
+            if (fq == null) fq = cfrMap.get("followup_question");
+            if (fq instanceof Map<?, ?> fqMap) {
+                extractSuggestedAnswers((Map<String, Object>) fqMap, suggestedAnswers, refinedQueryForLookup);
+            }
         }
         Object convId = toScan.get("conversationId");
         if (convId == null) convId = toScan.get("conversation_id");
@@ -185,6 +232,15 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
         if (map.containsKey("userQueryTypes") && map.get("userQueryTypes") instanceof List<?> uqt
                 && !uqt.isEmpty()) {
             setQueryType.accept(String.valueOf(uqt.get(0)));
+        } else {
+            Object qt = toScan.get("queryType");
+            if (qt == null) qt = toScan.get("queryTypes");
+            if (qt instanceof List<?> qtl && !qtl.isEmpty()) {
+                setQueryType.accept(String.valueOf(qtl.get(0)));
+            } else if (qt != null) {
+                String s = String.valueOf(qt).trim();
+                if (!s.isEmpty()) setQueryType.accept(s);
+            }
         }
         Object textObj = map.get("conversationalTextResponse");
         if (textObj == null) textObj = toScan.get("textResult");
@@ -204,6 +260,67 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
     }
 
     @SuppressWarnings("unchecked")
+    private static String extractRefinedQueryFromMap(Map<String, Object> map, Map<String, Object> toScan) {
+        if (map != null && map.containsKey("refinedSearch") && map.get("refinedSearch") instanceof List<?> rs
+                && !rs.isEmpty() && rs.get(0) instanceof Map<?, ?> rq) {
+            Object q = ((Map<?, ?>) rq).get("query");
+            if (q != null) {
+                String s = String.valueOf(q).trim();
+                if (!s.isEmpty()) return s;
+            }
+        }
+        if (toScan != null) {
+            Object rq = toScan.get("refinedQuery");
+            if (rq == null) rq = toScan.get("refined_query");
+            if (rq != null) {
+                String s = String.valueOf(rq).trim();
+                if (!s.isEmpty()) return s;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void extractSuggestedAnswers(Map<String, Object> map, List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers, String searchQueryHint) {
+        if (map == null) return;
+        Object saObj = map.get("suggestedAnswers");
+        if (saObj == null) saObj = map.get("suggested_answers");
+        if (!(saObj instanceof List<?> saList)) return;
+        for (Object item : saList) {
+            String value = null;
+            String attributeName = null;
+            if (item instanceof String) {
+                value = ((String) item).trim();
+            } else if (item instanceof Map<?, ?> m) {
+                Object pav = ((Map<?, ?>) m).get("productAttributeValue");
+                if (pav == null) pav = ((Map<?, ?>) m).get("product_attribute_value");
+                if (pav instanceof Map<?, ?> pavMap) {
+                    Object v = ((Map<?, ?>) pavMap).get("value");
+                    if (v != null) value = String.valueOf(v).trim();
+                    Object n = ((Map<?, ?>) pavMap).get("name");
+                    if (n != null) attributeName = String.valueOf(n).trim();
+                }
+                if (value == null || value.isEmpty()) {
+                    Object t = ((Map<?, ?>) m).get("text");
+                    if (t == null) t = ((Map<?, ?>) m).get("answer");
+                    if (t != null) value = String.valueOf(t).trim();
+                }
+            } else if (item != null) {
+                value = String.valueOf(item).trim();
+            }
+            if (value != null && !value.isEmpty()) {
+                String displayText = resolveDisplayText(attributeName, value, searchQueryHint);
+                suggestedAnswers.add(new ConversationalCommerceClient.SuggestedAnswer(displayText, value));
+            }
+        }
+    }
+
+    /** Resolve display text from attribute name and raw value. Delegates to BrandDisplayResolver. */
+    private String resolveDisplayText(String attributeName, String value, String searchQueryHint) {
+        return brandDisplayResolver.resolveDisplayText(attributeName, value, searchQueryHint);
+    }
+
+    @SuppressWarnings("unchecked")
     private String extractFollowupQuestion(Map<String, Object> map) {
         if (map == null) return "";
         // Direct string (ConversationalSearchResult format)
@@ -220,8 +337,11 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
         }
         if (map.containsKey("conversationalFilteringResult") && map.get("conversationalFilteringResult") instanceof Map<?, ?> cfr) {
             Object cfrFq = ((Map<?, ?>) cfr).get("followupQuestion");
+            if (cfrFq == null) cfrFq = ((Map<?, ?>) cfr).get("followup_question");
+            if (cfrFq instanceof String s && !s.trim().isEmpty()) return s.trim();
             if (cfrFq instanceof Map<?, ?> fq) {
                 Object q = ((Map<?, ?>) fq).get("followupQuestion");
+                if (q == null) q = ((Map<?, ?>) fq).get("followup_question");
                 if (q != null) {
                     String s = String.valueOf(q).trim();
                     if (!s.isEmpty()) return s;

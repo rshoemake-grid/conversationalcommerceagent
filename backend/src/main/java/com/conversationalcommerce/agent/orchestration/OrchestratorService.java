@@ -20,11 +20,24 @@ public class OrchestratorService {
         this.adkOrchestrator = adkOrchestrator;
     }
 
-    public AgentResponse process(ChatRequest.OrchestrationMode mode, String message, String conversationId, String sessionId, String imageBase64) {
+    public AgentResponse process(ChatRequest.OrchestrationMode mode, String message, String conversationId, String sessionId,
+                                 String imageBase64, Integer maxSuggestedAnswers, String previousAssistantText,
+                                 java.util.List<ChatRequest.SuggestedAnswerInput> previousSuggestedAnswers) {
         var context = new java.util.HashMap<String, Object>(Map.of("visitorId", sessionId, "sessionId", sessionId));
         context.put("orchestrationMode", mode.name());
         if (imageBase64 != null && !imageBase64.isBlank()) {
             context.put("imageBase64", imageBase64);
+        }
+        if (maxSuggestedAnswers != null && maxSuggestedAnswers > 0) {
+            context.put("maxSuggestedAnswers", maxSuggestedAnswers);
+        }
+        if (previousAssistantText != null && !previousAssistantText.isBlank()) {
+            context.put("previousAssistantText", previousAssistantText);
+        }
+        if (previousSuggestedAnswers != null && !previousSuggestedAnswers.isEmpty()) {
+            context.put("previousSuggestedAnswers", previousSuggestedAnswers.stream()
+                    .map(sa -> Map.<String, String>of("displayText", sa.displayText() != null ? sa.displayText() : "", "value", sa.value() != null ? sa.value() : ""))
+                    .toList());
         }
 
         return switch (mode) {

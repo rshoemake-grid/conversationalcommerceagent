@@ -1,0 +1,33 @@
+---
+description: When adding attribute mappings, always send canonical values to the GCP API
+globs: backend/src/main/resources/application.yml
+alwaysApply: false
+---
+
+# Attribute Mappings: Always Send Canonical Values
+
+When adding new attributes (display mapping or value expansion):
+
+1. **attribute-display-mapping** – Maps API values to display text (e.g. `F: Frozen`). For UI only; does not change what we send.
+
+2. **attribute-value-expansion** – Maps short/user input to canonical API values. **Required** when the API returns abbreviated values (F, C) that cause RETAIL_IRRELEVANT if sent as-is. Always add expansion for any abbreviated codes.
+
+## Checklist for New Attributes
+
+When adding a new attribute (e.g. `attributes.newDimension`):
+
+- [ ] Add `attribute-display-mapping` for readable UI labels
+- [ ] Add `attribute-value-expansion` for every short/abbreviated value the API might return or user might send (maps short → canonical before sending to GCP)
+
+Example:
+
+```yaml
+attribute-display-mapping:
+  newDimension:
+    S: Small
+    L: Large
+attribute-value-expansion:
+  newDimension:
+    S: SMALL
+    L: LARGE
+```

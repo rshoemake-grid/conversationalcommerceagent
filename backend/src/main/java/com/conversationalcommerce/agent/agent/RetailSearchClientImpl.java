@@ -5,7 +5,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Real implementation using GCP Retail SearchServiceClient (gRPC).
@@ -23,13 +25,21 @@ public class RetailSearchClientImpl implements RetailSearchClient {
 
     @Override
     public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId) {
-        var req = SearchRequest.newBuilder()
+        return search(placement, branch, query, visitorId, null);
+    }
+
+    @Override
+    public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
+        var reqBuilder = SearchRequest.newBuilder()
                 .setPlacement(placement)
                 .setBranch(branch)
                 .setQuery(query)
                 .setVisitorId(visitorId)
-                .setPageSize(20)
-                .build();
+                .setPageSize(20);
+        if (filter != null && !filter.isBlank()) {
+            reqBuilder.setFilter(filter);
+        }
+        var req = reqBuilder.build();
 
         SearchServiceClient.SearchPagedResponse pagedResponse = client.search(req);
 
@@ -50,7 +60,26 @@ public class RetailSearchClientImpl implements RetailSearchClient {
                 var img = product.getImages(0);
                 imageUri = img != null ? img.getUri() : null;
             }
-            results.add(new AgentResponse.ProductResult(id, title, desc, price, imageUri));
+            String gtin = product.getGtin() != null && !product.getGtin().isEmpty() ? product.getGtin() : null;
+            String productId = product.getId() != null && !product.getId().isEmpty() ? product.getId() : null;
+            List<String> categories = product.getCategoriesCount() > 0 ? new ArrayList<>(product.getCategoriesList()) : null;
+            List<String> brands = product.getBrandsCount() > 0 ? new ArrayList<>(product.getBrandsList()) : null;
+            String uri = product.getUri() != null && !product.getUri().isEmpty() ? product.getUri() : null;
+            String availability = product.getAvailability() != Product.Availability.UNRECOGNIZED && product.getAvailability() != Product.Availability.AVAILABILITY_UNSPECIFIED
+                    ? product.getAvailability().name() : null;
+            List<String> sizes = product.getSizesCount() > 0 ? new ArrayList<>(product.getSizesList()) : null;
+            List<String> materials = product.getMaterialsCount() > 0 ? new ArrayList<>(product.getMaterialsList()) : null;
+            Map<String, Object> attributes = null;
+            if (product.getAttributesCount() > 0) {
+                attributes = new HashMap<>();
+                for (Map.Entry<String, com.google.cloud.retail.v2beta.CustomAttribute> e : product.getAttributesMap().entrySet()) {
+                    var v = e.getValue();
+                    Object val = v.getTextCount() > 0 ? v.getText(0) : (v.getNumbersCount() > 0 ? v.getNumbers(0) : null);
+                    if (val != null) attributes.put(e.getKey(), val);
+                }
+                if (attributes.isEmpty()) attributes = null;
+            }
+            results.add(new AgentResponse.ProductResult(id, title, desc, price, imageUri, gtin, productId, categories, brands, uri, availability, sizes, materials, attributes));
         }
         return results;
     }
