@@ -127,6 +127,78 @@ describe('MessageList', () => {
     expect(screen.getByText('Here are some options.')).toBeInTheDocument()
   })
 
+  it('shows product count even when productTotalSize is unknown', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Here are some options',
+            products: [
+              { id: 'p1', title: 'Item 1', description: 'Desc', price: '$10', imageUri: 'http://img' },
+              { id: 'p2', title: 'Item 2', description: 'Desc', price: '$12', imageUri: 'http://img' },
+            ],
+          },
+        ]}
+      />
+    )
+    expect(screen.getByText(/Showing 2 products/)).toBeInTheDocument()
+  })
+
+  it('shows product count with total when productTotalSize is provided', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Here are some options',
+            products: [
+              { id: 'p1', title: 'Item 1', description: 'Desc', price: '$10', imageUri: 'http://img' },
+            ],
+            productTotalSize: 25,
+          },
+        ]}
+      />
+    )
+    expect(screen.getByText(/Showing 1 of 25 products/)).toBeInTheDocument()
+  })
+
+  it('shows clarifying question and suggested answers after products when present', () => {
+    const onSuggestedAnswer = vi.fn()
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'I found 1 product matching your request.',
+            products: [
+              { id: 'p1', title: 'Nike Run', description: 'Running shoes', price: '$99', imageUri: 'http://img' },
+            ],
+            clarifyingQuestion: 'Would you like 12oz or 24oz?',
+            suggestedAnswers: [
+              { displayText: '12oz', value: '12oz' },
+              { displayText: '24oz', value: '24oz' },
+            ],
+          },
+        ]}
+        onSuggestedAnswer={onSuggestedAnswer}
+      />
+    )
+    expect(screen.getByText('Products')).toBeInTheDocument()
+    expect(screen.getByText('Nike Run')).toBeInTheDocument()
+    expect(screen.getByText('Would you like 12oz or 24oz?')).toBeInTheDocument()
+    expect(screen.getByText('12oz')).toBeInTheDocument()
+    expect(screen.getByText('24oz')).toBeInTheDocument()
+    // Clarifying question and suggested answers should appear after products in DOM order
+    const productsSection = screen.getByText('Products').closest('.message__products')
+    expect(productsSection).toContainElement(screen.getByText('Would you like 12oz or 24oz?'))
+    expect(productsSection).toContainElement(screen.getByText('12oz'))
+    expect(productsSection).toContainElement(screen.getByText('24oz'))
+  })
+
   it('renders product cards when products are present', () => {
     render(
       <MessageList

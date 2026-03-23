@@ -389,6 +389,39 @@
   border-top: 1px solid var(--border-color);
 }
 
+.message__product-count {
+  font-size: 0.875rem;
+  font-weight: bold;
+  color: var(--color-text-muted, #666);
+  margin: 0 0 0.5rem 0;
+}
+.message__load-more {
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.875rem;
+  background: var(--color-bg-elevated, #f0f0f0);
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.message__load-more:hover:not(:disabled) {
+  background: var(--color-bg-elevated-hover, #e5e5e5);
+}
+.message__load-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message__clarifying-block {
+  margin-top: 1rem;
+}
+
+.message__clarifying-block .message__clarifying-question {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  color: var(--color-text, inherit);
+}
+
 .message__products h4 {
   margin: 0 0 0.5rem 0;
   font-size: 0.875rem;

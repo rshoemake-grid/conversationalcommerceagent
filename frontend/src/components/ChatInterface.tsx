@@ -34,6 +34,7 @@ export function ChatInterface() {
     handleRetry,
     handleDismissError,
     handleGetMoreSuggestions,
+    handleLoadMore,
     startNewConversation,
   } = useChat();
 
@@ -88,6 +89,7 @@ export function ChatInterface() {
         onDismissError={handleDismissError}
         onSuggestedAnswer={handleSuggestedAnswer}
         onGetMoreSuggestions={handleGetMoreSuggestions}
+        onLoadMore={handleLoadMore}
       />
 
       <div className="chat-input-area">

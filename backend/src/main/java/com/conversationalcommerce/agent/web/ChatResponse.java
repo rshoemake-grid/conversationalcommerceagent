@@ -13,11 +13,17 @@ public record ChatResponse(
         String source,
         String queryType,
         String rawResponse,
-        List<SuggestedAnswerDto> suggestedAnswers
+        List<SuggestedAnswerDto> suggestedAnswers,
+        Long productTotalSize,
+        Boolean productTotalSizeIsApproximate,
+        String productNextPageToken,
+        String productFilter,
+        /** Clarifying question to show after products (e.g. "Would you like 12oz or 24oz?"). */
+        String clarifyingQuestion
 ) {
     public static ChatResponse from(AgentResponse r) {
         if (r == null) {
-            return new ChatResponse("", "", null, List.of(), "agent", null, null, List.<SuggestedAnswerDto>of());
+            return new ChatResponse("", "", null, List.of(), "agent", null, null, List.<SuggestedAnswerDto>of(), null, null, null, null, null);
         }
         List<ProductDto> products = r.products() != null
                 ? r.products().stream()
@@ -51,7 +57,12 @@ public record ChatResponse(
                         ? r.suggestedAnswers().stream()
                                 .map(sa -> new SuggestedAnswerDto(sa.displayText(), sa.value()))
                                 .toList()
-                        : List.of()
+                        : List.of(),
+                r.productTotalSize() >= 0 ? r.productTotalSize() : null,
+                r.productTotalSizeIsApproximate(),
+                r.productNextPageToken(),
+                r.productFilter(),
+                r.clarifyingQuestion()
         );
     }
 

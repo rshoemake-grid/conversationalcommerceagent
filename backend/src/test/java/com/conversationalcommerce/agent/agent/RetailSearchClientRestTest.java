@@ -1,5 +1,6 @@
 package com.conversationalcommerce.agent.agent;
 
+import com.conversationalcommerce.agent.config.ConversationalCommerceConfig;
 import com.conversationalcommerce.agent.config.GcpCredentialsProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -43,7 +44,7 @@ class RetailSearchClientRestTest {
               ]
             }
             """;
-        var client = new RetailSearchClientRest((GcpCredentialsProvider) null);
+        var client = new RetailSearchClientRest((GcpCredentialsProvider) null, new ConversationalCommerceConfig());
         @SuppressWarnings("unchecked")
         List<AgentResponse.ProductResult> results = (List<AgentResponse.ProductResult>)
                 ReflectionTestUtils.invokeMethod(client, "parseResponse", json);
@@ -80,7 +81,7 @@ class RetailSearchClientRestTest {
               ]
             }
             """;
-        var client = new RetailSearchClientRest((GcpCredentialsProvider) null);
+        var client = new RetailSearchClientRest((GcpCredentialsProvider) null, new ConversationalCommerceConfig());
         @SuppressWarnings("unchecked")
         List<AgentResponse.ProductResult> results = (List<AgentResponse.ProductResult>)
                 ReflectionTestUtils.invokeMethod(client, "parseResponse", json);
@@ -119,7 +120,7 @@ class RetailSearchClientRestTest {
               ]
             }
             """;
-        var client = new RetailSearchClientRest((GcpCredentialsProvider) null);
+        var client = new RetailSearchClientRest((GcpCredentialsProvider) null, new ConversationalCommerceConfig());
         @SuppressWarnings("unchecked")
         List<AgentResponse.ProductResult> results = (List<AgentResponse.ProductResult>)
                 ReflectionTestUtils.invokeMethod(client, "parseResponse", json);
@@ -150,7 +151,7 @@ class RetailSearchClientRestTest {
               ]
             }
             """;
-        var client = new RetailSearchClientRest((GcpCredentialsProvider) null);
+        var client = new RetailSearchClientRest((GcpCredentialsProvider) null, new ConversationalCommerceConfig());
         @SuppressWarnings("unchecked")
         List<AgentResponse.ProductResult> results = (List<AgentResponse.ProductResult>)
                 ReflectionTestUtils.invokeMethod(client, "parseResponse", json);

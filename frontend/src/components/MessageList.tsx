@@ -10,6 +10,7 @@ interface MessageListProps {
   onDismissError?: (messageId: string) => void;
   onSuggestedAnswer?: (text: string) => void;
   onGetMoreSuggestions?: () => void;
+  onLoadMore?: (msg: Message) => void;
 }
 
 function MessageListComponent({
@@ -20,6 +21,7 @@ function MessageListComponent({
   onDismissError,
   onSuggestedAnswer,
   onGetMoreSuggestions,
+  onLoadMore,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -105,7 +107,7 @@ function MessageListComponent({
               )}
             </div>
           )}
-          {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && (
+          {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && !msg.clarifyingQuestion && (
             <div className="message__suggested-answers">
               {(maxSuggestedAnswers != null
                 ? msg.suggestedAnswers.slice(0, maxSuggestedAnswers)
@@ -141,11 +143,67 @@ function MessageListComponent({
           {msg.products && msg.products.length > 0 && (
             <div className="message__products">
               <h4>Products</h4>
+              <p className="message__product-count" aria-live="polite">
+                {msg.productTotalSize != null && msg.productTotalSize >= 0
+                  ? `Showing ${msg.products.length} of ${msg.productTotalSizeIsApproximate ? 'at least ' : ''}${msg.productTotalSize} ${msg.productTotalSize === 1 ? 'product' : 'products'}`
+                  : `Showing ${msg.products.length} ${msg.products.length === 1 ? 'product' : 'products'}`}
+              </p>
               <div className="product-grid">
                 {msg.products.map((p, idx) => (
                   <ProductCard key={p.id || `p-${idx}`} product={p} index={idx} />
                 ))}
               </div>
+              {msg.productNextPageToken && onLoadMore && (
+                <button
+                  type="button"
+                  className="message__load-more"
+                  onClick={() => onLoadMore(msg)}
+                  disabled={loading}
+                  aria-label="Load more products"
+                >
+                  Load more
+                </button>
+              )}
+              {msg.clarifyingQuestion && (
+                <div className="message__clarifying-block">
+                  <p className="message__clarifying-question" aria-live="polite">
+                    {msg.clarifyingQuestion}
+                  </p>
+                  {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && (
+                    <div className="message__suggested-answers">
+                      {(maxSuggestedAnswers != null
+                        ? msg.suggestedAnswers.slice(0, maxSuggestedAnswers)
+                        : msg.suggestedAnswers
+                      ).map((answer, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className="message__suggested-answer"
+                          onClick={() => onSuggestedAnswer(answer.displayText)}
+                        >
+                          {answer.displayText}
+                        </button>
+                      ))}
+                      {onGetMoreSuggestions &&
+                        msg.role === 'assistant' &&
+                        !msg.isError &&
+                        msg.suggestedAnswers &&
+                        msg.suggestedAnswers.length > 0 &&
+                        msg.id === [...messages].reverse().find((m) => m.role === 'assistant' && m.suggestedAnswers?.length)?.id && (
+                          <button
+                            type="button"
+                            className="message__get-more-suggestions"
+                            onClick={onGetMoreSuggestions}
+                            disabled={loading}
+                            aria-label="Get more suggested answers"
+                          >
+                            Get more suggestions
+                          </button>
+                        )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

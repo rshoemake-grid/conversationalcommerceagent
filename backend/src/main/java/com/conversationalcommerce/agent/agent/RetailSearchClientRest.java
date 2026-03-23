@@ -1,5 +1,6 @@
 package com.conversationalcommerce.agent.agent;
 
+import com.conversationalcommerce.agent.config.ConversationalCommerceConfig;
 import com.conversationalcommerce.agent.config.GcpCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import org.slf4j.Logger;
@@ -28,36 +29,40 @@ public class RetailSearchClientRest implements RetailSearchClient {
     private static final String BASE_URL = "https://retail.googleapis.com/v2";
 
     private final GcpCredentialsProvider credentialsProvider;
+    private final ConversationalCommerceConfig config;
     private final HttpClient httpClient = HttpClient.newBuilder().build();
 
-    public RetailSearchClientRest(GcpCredentialsProvider credentialsProvider) {
+    public RetailSearchClientRest(GcpCredentialsProvider credentialsProvider, ConversationalCommerceConfig config) {
         this.credentialsProvider = credentialsProvider;
+        this.config = config;
     }
 
     @Override
-    public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId) {
-        return search(placement, branch, query, visitorId, null);
-    }
-
-    @Override
-    public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
+    public SearchResult searchWithPagination(String placement, String branch, String query, String visitorId,
+                                             String filter, String pageToken) {
         String url = BASE_URL + "/" + placement + ":search";
         String filterJson = (filter != null && !filter.isBlank())
                 ? ", \"filter\": \"" + escapeJson(filter) + "\""
                 : "";
+        String pageTokenJson = (pageToken != null && !pageToken.isBlank())
+                ? ", \"pageToken\": \"" + escapeJson(pageToken) + "\""
+                : "";
+        int pageSize = config != null ? config.productSearchPageSize() : 20;
         String body = """
                 {
                   "branch": "%s",
                   "query": "%s",
                   "visitorId": "%s",
-                  "pageSize": 20,
-                  "variantRollupKeys": ["price"]%s
+                  "pageSize": %d,
+                  "variantRollupKeys": ["price"]%s%s
                 }
                 """.formatted(
                 escapeJson(branch),
                 escapeJson(query),
                 escapeJson(visitorId),
-                filterJson
+                pageSize,
+                filterJson,
+                pageTokenJson
         );
 
         try {
@@ -81,13 +86,13 @@ public class RetailSearchClientRest implements RetailSearchClient {
 
             if (response.statusCode() != 200) {
                 log.warn("Product search REST error: {} {}", response.statusCode(), response.body());
-                return List.of();
+                return SearchResult.of(List.of());
             }
 
-            return parseResponse(response.body());
+            return parseResponseWithMeta(response.body());
         } catch (Exception e) {
             log.warn("Product search failed: {}", e.getMessage());
-            return List.of();
+            return SearchResult.of(List.of());
         }
     }
 
@@ -96,24 +101,35 @@ public class RetailSearchClientRest implements RetailSearchClient {
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 
-    @SuppressWarnings("unchecked")
+    /** For tests that call parseResponse via reflection. */
     private List<AgentResponse.ProductResult> parseResponse(String json) {
+        return parseResponseWithMeta(json).products();
+    }
+
+    @SuppressWarnings("unchecked")
+    private SearchResult parseResponseWithMeta(String json) {
         List<AgentResponse.ProductResult> results = new ArrayList<>();
+        String nextPageToken = null;
+        long totalSize = -1;
         try {
             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             Map<String, Object> root = mapper.readValue(json, Map.class);
             List<Map<String, Object>> resultList = (List<Map<String, Object>>) root.get("results");
-            if (resultList == null) return results;
-
-            for (Map<String, Object> item : resultList) {
-                Map<String, Object> product = (Map<String, Object>) item.get("product");
-                if (product == null) continue;
-                AgentResponse.ProductResult pr = ProductResponseParser.fromProductMap(product, item, false);
-                if (pr != null) results.add(pr);
+            if (resultList != null) {
+                for (Map<String, Object> item : resultList) {
+                    Map<String, Object> product = (Map<String, Object>) item.get("product");
+                    if (product == null) continue;
+                    AgentResponse.ProductResult pr = ProductResponseParser.fromProductMap(product, item, false);
+                    if (pr != null) results.add(pr);
+                }
             }
+            Object nt = root.get("nextPageToken");
+            if (nt != null && nt.toString().trim().length() > 0) nextPageToken = nt.toString().trim();
+            Object ts = root.get("totalSize");
+            if (ts instanceof Number n) totalSize = n.longValue();
         } catch (Exception e) {
             log.warn("Failed to parse search response: {}", e.getMessage());
         }
-        return results;
+        return SearchResult.of(results, nextPageToken, totalSize);
     }
 }

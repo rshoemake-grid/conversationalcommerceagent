@@ -45,6 +45,43 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
     @Override
     public AgentResponse sendMessage(String conversationId, String message, Map<String, Object> context) {
         String visitorId = getVisitorId(context);
+        String productPageToken = (String) context.get("productPageToken");
+        String prevRefinedForLoadMore = (String) context.get("previousRefinedQuery");
+        String prevFilter = (String) context.get("previousProductFilter");
+
+        // Load more: skip conversational API, fetch next page directly
+        if (productPageToken != null && !productPageToken.isBlank() && prevRefinedForLoadMore != null && !prevRefinedForLoadMore.isBlank()) {
+            try {
+                SearchResult sr = searchClient.searchWithPagination(
+                        config.placement(), config.branch(), prevRefinedForLoadMore.trim(), visitorId,
+                        prevFilter != null && !prevFilter.isBlank() ? prevFilter : null,
+                        productPageToken);
+                var prods = enrichmentService.enrich(sr.products());
+                String countText = prods.isEmpty() ? "No more products." : (prods.size() == 1 ? "1 more product." : prods.size() + " more products.");
+                long totalSize = sr.totalSize();
+                boolean totalSizeIsApproximate = false;
+                if (totalSize < 0 && !prods.isEmpty()) {
+                    int pageSize = config.productSearchPageSize();
+                    totalSize = prods.size() + (sr.nextPageToken() != null && !sr.nextPageToken().isBlank() ? pageSize : 0);
+                    totalSizeIsApproximate = true;
+                }
+                return AgentResponse.builder()
+                        .text(countText)
+                        .conversationId(conversationId != null ? conversationId : "")
+                        .refinedQuery(prevRefinedForLoadMore.trim())
+                        .products(prods)
+                        .queryType("SIMPLE_PRODUCT_SEARCH")
+                        .source("app")
+                        .productTotalSize(totalSize >= 0 ? totalSize : -1)
+                        .productTotalSizeIsApproximate(totalSizeIsApproximate)
+                        .productNextPageToken(sr.nextPageToken())
+                        .productFilter(prevFilter)
+                        .build();
+            } catch (Exception e) {
+                log.warn("Load more failed: {}", e.getMessage());
+            }
+        }
+
         String imageBase64 = (String) context.get("imageBase64");
         String userInput = (message != null && !message.isBlank()) ? message.trim()
                 : (imageBase64 != null ? "Find products similar to this image" : "");
@@ -63,6 +100,8 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         var result = client.search(request);
 
         List<AgentResponse.ProductResult> products = List.of();
+        SearchResult searchResult = null;
+        String productFilterUsed = null;
         String searchQuery = result.refinedQuery();
         boolean usedNoPreferenceRecovery = false;
         boolean usedStorageTypeRecovery = false;
@@ -98,14 +137,17 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                             ? filter + " AND " + storageTypeFilter
                             : storageTypeFilter;
                 }
-                products = searchClient.search(
+                productFilterUsed = filter;
+                String pageToken = (productPageToken != null && !productPageToken.isBlank()) ? productPageToken : null;
+                searchResult = searchClient.searchWithPagination(
                         config.placement(),
                         config.branch(),
                         searchQuery,
                         visitorId,
-                        filter
+                        filter,
+                        pageToken
                 );
-                products = enrichmentService.enrich(products);
+                products = enrichmentService.enrich(searchResult.products());
             } catch (Exception e) {
                 log.warn("Product search failed (may use gRPC; try transport=rest for full REST): {}", e.getMessage());
             }
@@ -124,7 +166,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             // When storage-type recovery returns no products, fall through to previous-agent fallback below
         }
         List<AgentResponse.ProductResult> productsToReturn = products;
-        int productCountThreshold = 8;
+        int productCountThreshold = config.productCountThreshold();
         if (products.isEmpty()) {
             log.info("Products empty; userQueryType={}", result.queryType() != null ? result.queryType() : "(none)");
         }
@@ -222,17 +264,37 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                 usedPreviousAgentFallback = true;
             }
         }
+        boolean agentProvidedClarifying = text != null && !text.isEmpty() && !text.startsWith("Searching for:")
+                && text.contains("?");
+        String clarifyingQuestion = null; // Shown after products in UI
         if (useConvoCommerceOnly) {
             // Approach A: Pass through agent response as-is; no app overrides
+            // When agent provided a clarifying question, show it with products (don't clear)
             // Never clear products when user said "Any" and we recovered with previousRefinedQuery
-            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion) {
+            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion && !agentProvidedClarifying) {
                 productsToReturn = List.of();
             } else if (!products.isEmpty() && isSearchingFallback) {
                 // Replace "Searching for: X" placeholder with a proper count when we have products
                 int n = products.size();
-                text = n == 1
+                String countPhrase = n == 1
                         ? "I found 1 product matching your request."
                         : "I found " + n + " products matching your request.";
+                if (agentProvidedClarifying) {
+                    clarifyingQuestion = text;
+                    text = countPhrase;
+                } else {
+                    text = countPhrase;
+                }
+                responseSource = "app";
+            } else if (!products.isEmpty() && agentProvidedClarifying && !isSearchingFallback
+                    && !usedNoPreferenceRecovery && !usedStorageTypeRecovery) {
+                // Agent provided clarifying question; count in text, question shown after products
+                int n = products.size();
+                String countPhrase = n == 1
+                        ? "I found 1 product matching your request."
+                        : "I found " + n + " products matching your request.";
+                clarifyingQuestion = text;
+                text = countPhrase;
                 responseSource = "app";
             } else if (products.isEmpty() && hasRefinedQuery && !usedPreviousAgentFallback) {
                 // Always show "No products found" when search returns empty. Include agent context if meaningful (not placeholder).
@@ -243,15 +305,23 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             }
         }
         if (!useConvoCommerceOnly) {
-            // Approach B: Use our clarifying logic when many products
+            // Approach B: Use our clarifying logic when many products; when agent provided one, show it with products
             if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion) {
                 String categoryHint = refinedQuery != null ? refinedQuery : "products";
                 int productCount = products.size();
-                text = clarifyingGenerator
-                        .map(gen -> gen.generate(categoryHint, productCount))
-                        .filter(t -> t != null && !t.isBlank())
-                        .orElse(FALLBACK_CLARIFY.formatted(categoryHint));
-                productsToReturn = List.of();
+                int n = products.size();
+                String countPhrase = n == 1
+                        ? "I found 1 product matching your request."
+                        : "I found " + n + " products matching your request.";
+                String clarifyingText = agentProvidedClarifying
+                        ? text
+                        : (clarifyingGenerator
+                                .map(gen -> gen.generate(categoryHint, productCount))
+                                .filter(t -> t != null && !t.isBlank())
+                                .orElse(FALLBACK_CLARIFY.formatted(categoryHint)));
+                clarifyingQuestion = clarifyingText;
+                text = countPhrase;
+                productsToReturn = products;
                 responseSource = "app";
             } else if (!products.isEmpty()) {
                 if (!usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion) {
@@ -259,7 +329,12 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                     String countPhrase = n == 1
                             ? "I found 1 product matching your request."
                             : "I found " + n + " products matching your request.";
-                    text = (text.isEmpty() || isSearchingFallback) ? countPhrase : countPhrase + "\n\n" + text;
+                    if (!text.isEmpty() && !isSearchingFallback && text.contains("?")) {
+                        clarifyingQuestion = text;
+                        text = countPhrase;
+                    } else {
+                        text = (text.isEmpty() || isSearchingFallback) ? countPhrase : countPhrase + "\n\n" + text;
+                    }
                 }
                 responseSource = "app";
             } else if (products.isEmpty() && hasRefinedQuery && !usedPreviousAgentFallback) {
@@ -270,7 +345,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             }
         }
 
-        if (suggestedAnswers.isEmpty() && text != null && text.contains("?")) {
+        if (suggestedAnswers.isEmpty() && ((text != null && text.contains("?")) || (clarifyingQuestion != null && clarifyingQuestion.contains("?")))) {
             suggestedAnswers = List.of(new ConversationalCommerceClient.SuggestedAnswer("Any", "ANY"));
         }
         suggestedAnswers = applyStorageTypeDisplayMapping(suggestedAnswers);
@@ -279,6 +354,16 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             productsToReturn = products;
             responseSource = "app";
             log.info("{}: returning {} products", usedStorageTypeRecovery ? "Storage-type recovery" : "No-preference recovery", productsToReturn.size());
+        }
+        long totalSize = searchResult != null ? searchResult.totalSize() : -1;
+        String nextPageToken = searchResult != null ? searchResult.nextPageToken() : null;
+        boolean totalSizeIsApproximate = false;
+        if (totalSize < 0 && productsToReturn != null && !productsToReturn.isEmpty()) {
+            int pageSize = config.productSearchPageSize();
+            int pagesEstimate = (int) Math.ceil((double) productsToReturn.size() / pageSize)
+                    + (nextPageToken != null && !nextPageToken.isBlank() ? 1 : 0);
+            totalSize = Math.max(productsToReturn.size(), (long) pagesEstimate * pageSize);
+            totalSizeIsApproximate = true;
         }
         return AgentResponse.builder()
                 .text(text)
@@ -289,6 +374,11 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                 .source(responseSource)
                 .rawResponse(result.rawResponse())
                 .suggestedAnswers(suggestedAnswers)
+                .productTotalSize(totalSize)
+                .productTotalSizeIsApproximate(totalSizeIsApproximate)
+                .productNextPageToken(nextPageToken)
+                .productFilter(productFilterUsed)
+                .clarifyingQuestion(clarifyingQuestion)
                 .build();
     }
 

@@ -27,11 +27,29 @@ public interface RetailSearchClient {
      * @param filter optional filter expression (e.g. brands: ANY("Nike") or attributes.brandId: ANY("BHB/NPM"))
      * @return list of product results, or empty list if none
      */
-    List<AgentResponse.ProductResult> search(
+    default List<AgentResponse.ProductResult> search(
             String placement,
             String branch,
             String query,
             String visitorId,
             String filter
-    );
+    ) {
+        return searchWithPagination(placement, branch, query, visitorId, filter, null).products();
+    }
+
+    /**
+     * Search with pagination. Returns products, nextPageToken, and totalSize.
+     *
+     * @param pageToken optional token from a previous response to fetch next page
+     */
+    default SearchResult searchWithPagination(
+            String placement,
+            String branch,
+            String query,
+            String visitorId,
+            String filter,
+            String pageToken
+    ) {
+        return SearchResult.of(search(placement, branch, query, visitorId, filter));
+    }
 }

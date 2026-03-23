@@ -15,7 +15,17 @@ public record AgentResponse(
         String queryType,
         String source,
         String rawResponse,
-        List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers
+        List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers,
+        /** Estimated total products (GCP); -1 if unknown. When productTotalSizeIsApproximate, value is pages×pageSize. */
+        long productTotalSize,
+        /** True when productTotalSize is approximated (pages×pageSize) because raw search didn't provide it. */
+        boolean productTotalSizeIsApproximate,
+        /** Token to fetch next page; null if no more. */
+        String productNextPageToken,
+        /** Filter used for search (for load-more to reuse). */
+        String productFilter,
+        /** Clarifying question to show after products (e.g. "Would you like 12oz or 24oz?"). */
+        String clarifyingQuestion
 ) {
     public static Builder builder() {
         return new Builder();
@@ -30,6 +40,11 @@ public record AgentResponse(
         private String source;
         private String rawResponse;
         private List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers;
+        private long productTotalSize = -1;
+        private boolean productTotalSizeIsApproximate = false;
+        private String productNextPageToken;
+        private String productFilter;
+        private String clarifyingQuestion;
 
         public Builder text(String text) {
             this.text = text;
@@ -71,8 +86,33 @@ public record AgentResponse(
             return this;
         }
 
+        public Builder productTotalSize(long v) {
+            this.productTotalSize = v;
+            return this;
+        }
+
+        public Builder productTotalSizeIsApproximate(boolean v) {
+            this.productTotalSizeIsApproximate = v;
+            return this;
+        }
+
+        public Builder productNextPageToken(String v) {
+            this.productNextPageToken = v;
+            return this;
+        }
+
+        public Builder productFilter(String v) {
+            this.productFilter = v;
+            return this;
+        }
+
+        public Builder clarifyingQuestion(String v) {
+            this.clarifyingQuestion = v;
+            return this;
+        }
+
         public AgentResponse build() {
-            return new AgentResponse(text, conversationId, refinedQuery, products, queryType, source != null ? source : "agent", rawResponse, suggestedAnswers);
+            return new AgentResponse(text, conversationId, refinedQuery, products, queryType, source != null ? source : "agent", rawResponse, suggestedAnswers, productTotalSize, productTotalSizeIsApproximate, productNextPageToken, productFilter, clarifyingQuestion);
         }
     }
 

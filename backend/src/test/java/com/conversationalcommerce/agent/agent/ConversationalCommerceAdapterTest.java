@@ -233,6 +233,7 @@ class ConversationalCommerceAdapterTest {
 
     @Test
     void sendMessage_usesGeneratedClarifyingQuestionWhenGeneratorAvailable() {
+        config.setProductCountThreshold(8);
         var stubGenerator = new ClarifyingQuestionGenerator(null, null) {
             @Override
             public String generate(String refinedQuery, int productCount) {
@@ -259,12 +260,14 @@ class ConversationalCommerceAdapterTest {
 
         AgentResponse response = adapter.sendMessage("", "what other options?", Map.of());
 
-        assertThat(response.products()).isEmpty();
-        assertThat(response.text()).isEqualTo("What type of shrimp are you looking for? Raw, cooked, or peeled?");
+        assertThat(response.products()).hasSize(9);
+        assertThat(response.text()).contains("I found 9 products");
+        assertThat(response.clarifyingQuestion()).contains("What type of shrimp are you looking for? Raw, cooked, or peeled?");
     }
 
     @Test
     void sendMessage_asksClarifyingQuestionWhenManyProductsReturned() {
+        config.setProductCountThreshold(8);
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
                 "Here are options", "conv-1", "shoes", "SIMPLE_PRODUCT_SEARCH", "agent", null, List.of()
         ));
@@ -283,12 +286,14 @@ class ConversationalCommerceAdapterTest {
 
         AgentResponse response = adapter.sendMessage("", "shoes", Map.of());
 
-        assertThat(response.products()).isEmpty();
-        assertThat(response.text()).contains("narrow it down");
+        assertThat(response.products()).hasSize(9);
+        assertThat(response.text()).contains("I found 9 products");
+        assertThat(response.clarifyingQuestion()).contains("narrow it down");
     }
 
     @Test
     void sendMessage_convoCommerceMode_usesApiResponseWhenManyProducts() {
+        config.setProductCountThreshold(8);
         var stubGenerator = new ClarifyingQuestionGenerator(null, null) {
             @Override
             public String generate(String refinedQuery, int productCount) {
@@ -317,8 +322,9 @@ class ConversationalCommerceAdapterTest {
         var context = Map.<String, Object>of("orchestrationMode", "convo_commerce");
         AgentResponse response = adapter.sendMessage("", "shoes", context);
 
-        assertThat(response.products()).isEmpty();
-        assertThat(response.text()).isEqualTo(apiResponse);
+        assertThat(response.products()).hasSize(9);
+        assertThat(response.text()).contains("I found 9 products matching your request.");
+        assertThat(response.clarifyingQuestion()).isEqualTo(apiResponse);
     }
 
     @Test
@@ -400,6 +406,7 @@ class ConversationalCommerceAdapterTest {
 
     @Test
     void sendMessage_convoCommerceMode_passesThroughAgentResponse() {
+        config.setProductCountThreshold(8);
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
                 "Searching for: shrimp", "conv-1", "shrimp", "SIMPLE_PRODUCT_SEARCH", "app", null, List.of()
         ));

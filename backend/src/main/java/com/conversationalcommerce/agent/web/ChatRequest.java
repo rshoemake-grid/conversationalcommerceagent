@@ -14,20 +14,25 @@ public record ChatRequest(
         @Schema(description = "Max suggested answers to return (null = no limit; frontend slices for display)") Integer maxSuggestedAnswers,
         @Schema(description = "Previous assistant message text (for no-products fallback when user retries a suggested answer)") String previousAssistantText,
         @Schema(description = "Previous assistant suggested answers (for no-products fallback)") java.util.List<SuggestedAnswerInput> previousSuggestedAnswers,
-        @Schema(description = "Previous refined query (for RETAIL_IRRELEVANT recovery when user says Any/no preference)") String previousRefinedQuery
+        @Schema(description = "Previous refined query (for RETAIL_IRRELEVANT recovery when user says Any/no preference)") String previousRefinedQuery,
+        @Schema(description = "Token for load-more (next page of products)") String productPageToken,
+        @Schema(description = "Filter from previous product response (for load-more)") String previousProductFilter
 ) {
     public ChatRequest {
         message = message != null ? message : "";
         imageBase64 = imageBase64 != null && imageBase64.isBlank() ? null : imageBase64;
         previousSuggestedAnswers = previousSuggestedAnswers != null ? previousSuggestedAnswers : java.util.List.of();
+        productPageToken = productPageToken != null && productPageToken.isBlank() ? null : productPageToken;
+        previousProductFilter = previousProductFilter != null && previousProductFilter.isBlank() ? null : previousProductFilter;
     }
 
     @Schema(description = "Suggested answer for context (displayText, value)")
     public record SuggestedAnswerInput(String displayText, String value) {}
 
-    @AssertTrue(message = "Either message or imageBase64 must be provided")
+    @AssertTrue(message = "Either message, imageBase64, or productPageToken must be provided")
     public boolean isValidInput() {
-        return (message != null && !message.isBlank()) || (imageBase64 != null && !imageBase64.isBlank());
+        return (message != null && !message.isBlank()) || (imageBase64 != null && !imageBase64.isBlank())
+                || (productPageToken != null && !productPageToken.isBlank());
     }
 
     public enum OrchestrationMode {

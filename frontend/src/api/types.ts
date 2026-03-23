@@ -40,6 +40,16 @@ export interface Message {
   queryType?: string;
   /** Refined query from last turn (for RETAIL_IRRELEVANT recovery when user says Any/no preference) */
   refinedQuery?: string;
+  /** Total products matching search (GCP estimate); for "Showing X–Y of Z" */
+  productTotalSize?: number;
+  /** True when productTotalSize is approximated (pages×pageSize) from raw search */
+  productTotalSizeIsApproximate?: boolean;
+  /** Token for load-more (next page) */
+  productNextPageToken?: string;
+  /** Filter used (for load-more to reuse) */
+  productFilter?: string;
+  /** Clarifying question shown after products (e.g. "Would you like 12oz or 24oz?") */
+  clarifyingQuestion?: string;
 }
 
 export interface ChatRequest {
@@ -57,6 +67,10 @@ export interface ChatRequest {
   previousSuggestedAnswers?: SuggestedAnswer[];
   /** Previous refined query (for RETAIL_IRRELEVANT recovery when user says Any/no preference) */
   previousRefinedQuery?: string;
+  /** Token for load-more (next page of products) */
+  productPageToken?: string;
+  /** Filter from previous product response (for load-more) */
+  previousProductFilter?: string;
 }
 
 export interface ChatResponse {
@@ -72,6 +86,16 @@ export interface ChatResponse {
   rawResponse?: string;
   /** Quick-reply options from GCP suggestedAnswers: displayText for UI, value sent to API */
   suggestedAnswers?: SuggestedAnswer[];
+  /** Total products matching search (GCP estimate) */
+  productTotalSize?: number;
+  /** True when productTotalSize is approximated */
+  productTotalSizeIsApproximate?: boolean;
+  /** Token for load-more (next page) */
+  productNextPageToken?: string;
+  /** Filter used for search (for load-more) */
+  productFilter?: string;
+  /** Clarifying question shown after products */
+  clarifyingQuestion?: string;
 }
 
 /** Display text for UI; value is sent to API when user selects */

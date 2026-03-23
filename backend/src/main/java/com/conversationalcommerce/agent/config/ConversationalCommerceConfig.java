@@ -17,6 +17,10 @@ public class ConversationalCommerceConfig {
     private String conversationalFilteringMode = "DISABLED";
     /** Filter attribute for stock/storage type (GCP often returns attributes.stockType). Use "stockType" or "storageType". */
     private String stockTypeFilterAttribute = "stockType";
+    /** Max products per search request (REST and gRPC). Default 20. */
+    private int productSearchPageSize = 20;
+    /** Above this count we ask user to narrow (or show products if in recovery). Default 50 to avoid hiding results. */
+    private int productCountThreshold = 50;
     /** Map attribute name -> (value -> display name) for suggested answers. E.g. brands: {NIKE: Nike, ADIDAS: Adidas} */
     private java.util.Map<String, java.util.Map<String, String>> attributeDisplayMapping = new java.util.HashMap<>();
     /** Map attribute name -> (short/user input -> canonical API value). Expands before sending to GCP when short codes cause RETAIL_IRRELEVANT. */
@@ -49,6 +53,20 @@ public class ConversationalCommerceConfig {
     }
     public void setStockTypeFilterAttribute(String v) {
         this.stockTypeFilterAttribute = v != null ? v : "stockType";
+    }
+
+    public int productSearchPageSize() {
+        return productSearchPageSize > 0 ? productSearchPageSize : 20;
+    }
+    public void setProductSearchPageSize(int v) {
+        this.productSearchPageSize = v > 0 ? v : 20;
+    }
+
+    public int productCountThreshold() {
+        return productCountThreshold > 0 ? productCountThreshold : 50;
+    }
+    public void setProductCountThreshold(int v) {
+        this.productCountThreshold = v > 0 ? v : 50;
     }
 
     public java.util.Map<String, java.util.Map<String, String>> getAttributeDisplayMapping() {

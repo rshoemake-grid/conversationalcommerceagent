@@ -32,7 +32,9 @@ public class ChatController {
                 request.maxSuggestedAnswers(),
                 request.previousAssistantText(),
                 request.previousSuggestedAnswers(),
-                request.previousRefinedQuery()
+                request.previousRefinedQuery(),
+                request.productPageToken(),
+                request.previousProductFilter()
         );
         return ResponseEntity.ok(ChatResponse.from(response));
     }

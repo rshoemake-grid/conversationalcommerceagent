@@ -13,7 +13,7 @@ function createUserMessage(text: string, imageUri?: string, imageBase64?: string
   };
 }
 
-function createAssistantMessage(response: { text?: string; products?: Message['products']; refinedQuery?: string; source?: Message['source']; queryType?: string; suggestedAnswers?: SuggestedAnswer[]; rawResponse?: string | null }): Message {
+function createAssistantMessage(response: { text?: string; products?: Message['products']; refinedQuery?: string; source?: Message['source']; queryType?: string; suggestedAnswers?: SuggestedAnswer[]; rawResponse?: string | null; productTotalSize?: number; productTotalSizeIsApproximate?: boolean; productNextPageToken?: string | null; productFilter?: string | null; clarifyingQuestion?: string | null }): Message {
   let text = (response.text ?? '').trim();
   const products = response.products ?? [];
   const refinedQuery = response.refinedQuery ?? '';
@@ -51,6 +51,11 @@ function createAssistantMessage(response: { text?: string; products?: Message['p
     queryType: response.queryType,
     suggestedAnswers,
     refinedQuery: response.refinedQuery ?? undefined,
+    productTotalSize: response.productTotalSize ?? undefined,
+    productTotalSizeIsApproximate: response.productTotalSizeIsApproximate ?? undefined,
+    productNextPageToken: response.productNextPageToken ?? undefined,
+    productFilter: response.productFilter ?? undefined,
+    clarifyingQuestion: response.clarifyingQuestion ?? undefined,
   };
 }
 
@@ -206,12 +211,16 @@ export function useChat() {
         previousAssistantText?: string;
         previousSuggestedAnswers?: SuggestedAnswer[];
         previousRefinedQuery?: string;
+        productPageToken?: string;
+        previousProductFilter?: string;
+        appendProductsToMessageId?: string;
       }
     ) => {
       if (loading) return;
       const hasText = messageText != null && messageText.trim().length > 0;
       const hasImage = options?.imageBase64 != null && options.imageBase64.length > 0;
-      if (!hasText && !hasImage) return;
+      const hasLoadMore = options?.productPageToken != null && options.productPageToken.length > 0;
+      if (!hasText && !hasImage && !hasLoadMore) return;
 
       if (options?.removeErrorId) {
         setMessages((prev) => prev.filter((m) => m.id !== options.removeErrorId));
@@ -231,6 +240,8 @@ export function useChat() {
           previousAssistantText: options?.previousAssistantText,
           previousSuggestedAnswers: options?.previousSuggestedAnswers,
           previousRefinedQuery: options?.previousRefinedQuery,
+          productPageToken: options?.productPageToken,
+          previousProductFilter: options?.previousProductFilter,
         });
         if (response.conversationId != null && response.conversationId !== '') {
           conversationIdRef.current = response.conversationId;
@@ -283,11 +294,23 @@ export function useChat() {
             ...response,
             suggestedAnswers,
           };
+          if (options?.appendProductsToMessageId && response.products && response.products.length > 0) {
+            return prev.map((m) => {
+              if (m.id !== options.appendProductsToMessageId || m.role !== 'assistant') return m;
+              const merged = { ...m, products: [...(m.products ?? []), ...response.products!] };
+              if (response.productNextPageToken != null) merged.productNextPageToken = response.productNextPageToken;
+              if (response.productTotalSize != null) merged.productTotalSize = response.productTotalSize;
+              if (response.productTotalSizeIsApproximate != null) merged.productTotalSizeIsApproximate = response.productTotalSizeIsApproximate;
+              if (response.productFilter != null) merged.productFilter = response.productFilter;
+              return merged;
+            });
+          }
           return [...prev, createAssistantMessage(filteredResponse)];
         });
         setRawResponseHistory((prev) => [...prev, { rawResponse: response.rawResponse ?? null, fallbackResponse: response }]);
-        if (voiceOutputEnabled && response.text?.trim()) {
-          speak(response.text);
+        if (voiceOutputEnabled && (response.text?.trim() || response.clarifyingQuestion?.trim())) {
+          const fullText = [response.text?.trim(), response.clarifyingQuestion?.trim()].filter(Boolean).join(' ');
+          speak(fullText);
         }
       } catch (err) {
         setMessages((prev) => [...prev, createErrorMessage(err)]);
@@ -405,6 +428,21 @@ export function useChat() {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }, []);
 
+  const handleLoadMore = useCallback(
+    (msg: Message) => {
+      if (!msg.productNextPageToken || loading) return;
+      const refined = msg.refinedQuery ?? getLastNonEmptyRefinedQuery(messages);
+      if (!refined?.trim()) return;
+      sendMessage('', {
+        productPageToken: msg.productNextPageToken,
+        previousRefinedQuery: refined,
+        previousProductFilter: msg.productFilter ?? undefined,
+        appendProductsToMessageId: msg.id,
+      });
+    },
+    [loading, sendMessage, messages]
+  );
+
   const startNewConversation = useCallback(() => {
     setMessages([]);
     setRawResponseHistory([]);
@@ -440,6 +478,7 @@ export function useChat() {
     handleRetry,
     handleDismissError,
     handleGetMoreSuggestions,
+    handleLoadMore,
     startNewConversation,
   };
 }
