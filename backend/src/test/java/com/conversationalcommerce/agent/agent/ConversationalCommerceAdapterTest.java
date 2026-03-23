@@ -152,6 +152,32 @@ class ConversationalCommerceAdapterTest {
     }
 
     @Test
+    void sendMessage_sendsShortCodeD_WhenUserSelectsDryStorage() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of(
+                "dry storage", "D", "Dry storage", "D",
+                "F", "FROZEN", "C", "REFRIGERATED"
+        )));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "Here are dry storage rice options",
+                "conv-1",
+                "rice dry storage",
+                "SIMPLE_PRODUCT_SEARCH",
+                "agent",
+                null,
+                List.of()
+        ));
+        stubSearchClient.setProducts(List.of(
+                AgentResponse.ProductResult.of("p1", "Long Grain Rice", "Dry", "$5", null)
+        ));
+
+        adapter.sendMessage("", "D", Map.of());
+
+        assertThat(stubClient.lastRequest.query()).isEqualTo("D");
+    }
+
+    @Test
     void sendMessage_chainsExpansionWhenPreviousSuggestedAnswerHasShortValue() {
         config.setAttributeValueExpansion(Map.of("storageType", Map.of("C", "REFRIGERATED")));
         adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
@@ -296,6 +322,83 @@ class ConversationalCommerceAdapterTest {
     }
 
     @Test
+    void sendMessage_noPreferenceRecovery_whenSimpleProductSearchRegression() {
+        // User picked D (stock), then "Any" for rice type; API regresses to stock question with empty refinedQuery
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "What type of stock do you prefer?",
+                "conv-1",
+                null,
+                "SIMPLE_PRODUCT_SEARCH",
+                "agent",
+                null,
+                List.of(new ConversationalCommerceClient.SuggestedAnswer("S", "S"),
+                        new ConversationalCommerceClient.SuggestedAnswer("R", "R"),
+                        new ConversationalCommerceClient.SuggestedAnswer("D", "D"))
+        ));
+        stubSearchClient.setProducts(List.of(
+                AgentResponse.ProductResult.of("p1", "Long Grain Rice", "White rice", "$5", null),
+                AgentResponse.ProductResult.of("p2", "Basmati Rice", "Aromatic rice", "$7", null)
+        ));
+
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "long grain white rice"
+        );
+
+        AgentResponse response = adapter.sendMessage("conv-1", "Any", context);
+
+        assertThat(response.products()).hasSize(2);
+        assertThat(response.text()).isEqualTo("I found 2 products matching your request.");
+        assertThat(response.refinedQuery()).isEqualTo("long grain white rice");
+    }
+
+    @Test
+    void sendMessage_noPreferenceRecovery_returnsProductsEvenWhenOverThreshold_inConvoCommerceMode() {
+        // RETAIL_IRRELEVANT + "Any" for brand: 20 products, convo_commerce mode - must show products (not clear)
+        var manyProducts = List.of(
+                AgentResponse.ProductResult.of("p1", "Rice 1", "Desc", "$5", null),
+                AgentResponse.ProductResult.of("p2", "Rice 2", "Desc", "$6", null),
+                AgentResponse.ProductResult.of("p3", "Rice 3", "Desc", "$7", null),
+                AgentResponse.ProductResult.of("p4", "Rice 4", "Desc", "$8", null),
+                AgentResponse.ProductResult.of("p5", "Rice 5", "Desc", "$9", null),
+                AgentResponse.ProductResult.of("p6", "Rice 6", "Desc", "$10", null),
+                AgentResponse.ProductResult.of("p7", "Rice 7", "Desc", "$11", null),
+                AgentResponse.ProductResult.of("p8", "Rice 8", "Desc", "$12", null),
+                AgentResponse.ProductResult.of("p9", "Rice 9", "Desc", "$13", null),
+                AgentResponse.ProductResult.of("p10", "Rice 10", "Desc", "$14", null),
+                AgentResponse.ProductResult.of("p11", "Rice 11", "Desc", "$15", null),
+                AgentResponse.ProductResult.of("p12", "Rice 12", "Desc", "$16", null),
+                AgentResponse.ProductResult.of("p13", "Rice 13", "Desc", "$17", null),
+                AgentResponse.ProductResult.of("p14", "Rice 14", "Desc", "$18", null),
+                AgentResponse.ProductResult.of("p15", "Rice 15", "Desc", "$19", null),
+                AgentResponse.ProductResult.of("p16", "Rice 16", "Desc", "$20", null),
+                AgentResponse.ProductResult.of("p17", "Rice 17", "Desc", "$21", null),
+                AgentResponse.ProductResult.of("p18", "Rice 18", "Desc", "$22", null),
+                AgentResponse.ProductResult.of("p19", "Rice 19", "Desc", "$23", null),
+                AgentResponse.ProductResult.of("p20", "Rice 20", "Desc", "$24", null)
+        );
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "I didn't understand your response.",
+                "conv-1",
+                null,
+                "RETAIL_IRRELEVANT",
+                "app",
+                null,
+                List.of()
+        ));
+        stubSearchClient.setProducts(manyProducts);
+
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "white medium grain rice",
+                "orchestrationMode", "convo_commerce"
+        );
+
+        AgentResponse response = adapter.sendMessage("conv-1", "Any", context);
+
+        assertThat(response.products()).hasSize(20);
+        assertThat(response.text()).isEqualTo("I found 20 products matching your request.");
+    }
+
+    @Test
     void sendMessage_convoCommerceMode_passesThroughAgentResponse() {
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
                 "Searching for: shrimp", "conv-1", "shrimp", "SIMPLE_PRODUCT_SEARCH", "app", null, List.of()
@@ -337,14 +440,179 @@ class ConversationalCommerceAdapterTest {
 
     private static class StubRetailSearchClient implements RetailSearchClient {
         List<AgentResponse.ProductResult> products = List.of();
+        String lastQuery;
+        String lastFilter;
+        /** When filter contains this substring, return empty; else return products. For testing auto-run when first search fails. */
+        String returnEmptyWhenFilterContains;
 
         void setProducts(List<AgentResponse.ProductResult> products) {
             this.products = products;
         }
 
+        void setReturnEmptyWhenFilterContains(String substring) {
+            this.returnEmptyWhenFilterContains = substring;
+        }
+
         @Override
         public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
+            this.lastQuery = query;
+            this.lastFilter = filter;
+            if (returnEmptyWhenFilterContains != null && filter != null && filter.contains(returnEmptyWhenFilterContains)) {
+                return List.of();
+            }
             return products;
         }
+    }
+
+    @Test
+    void sendMessage_oneSuggestedAnswerFromApi_autoRunsIt() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of("S", "AMBIENT")));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "What type of stock do you prefer?",
+                "conv-1",
+                "rice",
+                "SIMPLE_PRODUCT_SEARCH",
+                "agent",
+                null,
+                List.of(new ConversationalCommerceClient.SuggestedAnswer("S", "S"))
+        ));
+        stubSearchClient.setProducts(List.of(AgentResponse.ProductResult.of("p1", "Long Grain Rice", "Shelf", "$5", null)));
+
+        AgentResponse response = adapter.sendMessage("", "rice", Map.of());
+
+        assertThat(response.products()).hasSize(1);
+        assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
+        assertThat(response.text()).isEqualTo("I found 1 product matching your request.");
+        assertThat(response.suggestedAnswers()).isEmpty();
+        assertThat(stubSearchClient.lastFilter).contains("AMBIENT");
+    }
+
+    @Test
+    void sendMessage_storageTypeSelectionUsesPreviousRefinedQueryAndFilter() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of("D", "DRY_STORAGE")));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "Here are dry storage options",
+                "conv-1",
+                "DRY_STORAGE",
+                "SIMPLE_PRODUCT_SEARCH",
+                "agent",
+                null,
+                List.of()
+        ));
+        stubSearchClient.setProducts(List.of(
+                AgentResponse.ProductResult.of("p1", "Long Grain Rice", "Dry rice", "$5", null)
+        ));
+
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "rice",
+                "previousSuggestedAnswers", List.of(
+                        Map.of("displayText", "D", "value", "D")
+                )
+        );
+
+        AgentResponse response = adapter.sendMessage("", "D", context);
+
+        assertThat(response.products()).hasSize(1);
+        assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
+        assertThat(stubSearchClient.lastQuery).isEqualTo("rice");
+        assertThat(stubSearchClient.lastFilter).contains("attributes.storageType").contains("DRY_STORAGE");
+    }
+
+    @Test
+    void sendMessage_storageTypeRecoveryNoProducts_reasksPreviousQuestionWithRemainingOptions() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of("D", "DRY_STORAGE")));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "Here are dry storage options",
+                "conv-1",
+                "DRY_STORAGE",
+                "SIMPLE_PRODUCT_SEARCH",
+                "agent",
+                null,
+                List.of()
+        ));
+        stubSearchClient.setProducts(List.of());
+
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "rice",
+                "previousAssistantText", "What type of stock do you prefer?",
+                "previousSuggestedAnswers", List.of(
+                        Map.of("displayText", "S", "value", "S"),
+                        Map.of("displayText", "R", "value", "R"),
+                        Map.of("displayText", "D", "value", "D")
+                )
+        );
+
+        AgentResponse response = adapter.sendMessage("", "D", context);
+
+        assertThat(response.products()).isEmpty();
+        assertThat(response.text()).startsWith("No products found for that option.");
+        assertThat(response.text()).contains("What type of stock do you prefer?");
+        assertThat(response.suggestedAnswers()).extracting(ConversationalCommerceClient.SuggestedAnswer::displayText)
+                .containsExactlyInAnyOrder("S", "R");
+    }
+
+    @Test
+    void sendMessage_storageTypeRecoveryNoProducts_oneOptionRemaining_autoRunsQuery() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of("S", "AMBIENT", "R", "REFRIGERATED", "D", "DRY_STORAGE")));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "Options", "conv-1", "REFRIGERATED", "SIMPLE_PRODUCT_SEARCH", "agent", null, List.of()
+        ));
+        stubSearchClient.setProducts(List.of(AgentResponse.ProductResult.of("p1", "Long Grain Rice", "Shelf", "$5", null)));
+        stubSearchClient.setReturnEmptyWhenFilterContains("REFRIGERATED");  // R search fails, auto-run S succeeds
+
+        // After D failed, we showed S and R. User clicks R, it fails; remaining = [S]. We auto-run S.
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "rice",
+                "previousAssistantText", "No products found for that option.\n\nWhat type of stock do you prefer?",
+                "previousSuggestedAnswers", List.of(
+                        Map.of("displayText", "S", "value", "S"),
+                        Map.of("displayText", "R", "value", "R")
+                )
+        );
+
+        AgentResponse response = adapter.sendMessage("", "R", context);
+
+        assertThat(response.products()).hasSize(1);
+        assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
+        assertThat(response.text()).startsWith("I found 1 product matching your request.");
+        assertThat(response.suggestedAnswers()).isEmpty();
+        assertThat(stubSearchClient.lastQuery).isEqualTo("rice");
+        assertThat(stubSearchClient.lastFilter).contains("AMBIENT");
+    }
+
+    @Test
+    void sendMessage_storageTypeRecoveryNoProducts_doesNotDuplicatePrefixWhenPrevTextAlreadyHasIt() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of("S", "AMBIENT", "R", "REFRIGERATED", "D", "DRY_STORAGE")));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "Options", "conv-1", "REFRIGERATED", "SIMPLE_PRODUCT_SEARCH", "agent", null, List.of()
+        ));
+        stubSearchClient.setProducts(List.of());
+
+        // After D failed we showed S, R. User clicks R; remaining = [S, D] so we don't auto-run (2 options left)
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "rice",
+                "previousAssistantText", "No products found for that option.\n\nWhat type of stock do you prefer?",
+                "previousSuggestedAnswers", List.of(
+                        Map.of("displayText", "S", "value", "S"),
+                        Map.of("displayText", "R", "value", "R"),
+                        Map.of("displayText", "D", "value", "D")
+                )
+        );
+
+        AgentResponse response = adapter.sendMessage("", "R", context);
+
+        assertThat(response.text()).isEqualTo("No products found for that option.\n\nWhat type of stock do you prefer?");
+        assertThat(response.suggestedAnswers()).extracting(ConversationalCommerceClient.SuggestedAnswer::displayText)
+                .containsExactlyInAnyOrder("S", "D");
     }
 }

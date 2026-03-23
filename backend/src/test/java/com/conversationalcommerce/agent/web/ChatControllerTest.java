@@ -103,6 +103,40 @@ class ChatControllerTest {
     }
 
     @Test
+    void chat_returnsProductsInResponse() throws Exception {
+        var productList = List.of(
+                AgentResponse.ProductResult.of("p1", "Rice 1", "White rice", "$5", null),
+                AgentResponse.ProductResult.of("p2", "Rice 2", "Brown rice", "$6", null)
+        );
+        stubOrchestratorService.setNextResponse(AgentResponse.builder()
+                .text("I found 2 products matching your request.")
+                .conversationId("conv-1")
+                .refinedQuery("rice")
+                .products(productList)
+                .source("app")
+                .queryType("RETAIL_IRRELEVANT")
+                .build());
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "mode": "convo_commerce",
+                                  "message": "Any",
+                                  "conversationId": "conv-1",
+                                  "sessionId": "sess-1",
+                                  "previousRefinedQuery": "rice"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.text").value("I found 2 products matching your request."))
+                .andExpect(jsonPath("$.products").isArray())
+                .andExpect(jsonPath("$.products.length()").value(2))
+                .andExpect(jsonPath("$.products[0].title").value("Rice 1"))
+                .andExpect(jsonPath("$.products[1].title").value("Rice 2"));
+    }
+
+    @Test
     void chat_returns500WithProblemDetailWhenOrchestratorThrows() throws Exception {
         stubOrchestratorService.setThrowOnNext(true);
 

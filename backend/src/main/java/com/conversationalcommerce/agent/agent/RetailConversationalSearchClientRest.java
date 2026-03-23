@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * REST-based implementation using HTTP/1.1. Use when gRPC fails (e.g. "Failed ALPN negotiation" behind VPN/proxy).
@@ -27,6 +29,11 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
 
     private static final Logger log = LoggerFactory.getLogger(RetailConversationalSearchClientRest.class);
     private static final String BASE_URL = "https://retail.googleapis.com/v2";
+
+    /** HTTP status codes worth retrying (transient failures). */
+    private static final Set<Integer> RETRYABLE_STATUS_CODES = Set.of(429, 502, 503, 504);
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long INITIAL_BACKOFF_MS = 500;
 
     private final ConversationalCommerceConfig config;
     private final GcpCredentialsProvider credentialsProvider;
@@ -48,37 +55,84 @@ public class RetailConversationalSearchClientRest implements ConversationalComme
         String url = BASE_URL + "/" + request.placement() + ":conversationalSearch";
         String body = buildRequestBody(request);
 
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpRequest httpRequest = buildHttpRequest(url, body);
+                HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+                if (response.statusCode() == 200) {
+                    var result = parseResponse(response.body());
+                    if (log.isDebugEnabled()) {
+                        log.debug("Conversational search: requestConvId={} responseConvId={} query={}",
+                                request.conversationId(), result.conversationId(), request.query());
+                    }
+                    return result;
+                }
+
+                if (RETRYABLE_STATUS_CODES.contains(response.statusCode()) && attempt < MAX_ATTEMPTS) {
+                    long backoffMs = INITIAL_BACKOFF_MS * (1L << (attempt - 1));
+                    log.warn("GCP REST API returned {} (attempt {}/{}), retrying in {}ms: {}",
+                            response.statusCode(), attempt, MAX_ATTEMPTS, backoffMs, response.body());
+                    Thread.sleep(backoffMs);
+                } else {
+                    throw new RuntimeException("REST API error: " + response.statusCode() + " " + response.body());
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("REST conversational search interrupted", e);
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < MAX_ATTEMPTS && isRetryableException(e)) {
+                    long backoffMs = INITIAL_BACKOFF_MS * (1L << (attempt - 1));
+                    log.warn("REST conversational search failed (attempt {}/{}), retrying in {}ms: {}",
+                            attempt, MAX_ATTEMPTS, backoffMs, e.getMessage());
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("REST conversational search interrupted", ie);
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        throw new RuntimeException("REST conversational search failed: " + (lastException != null ? lastException.getMessage() : "unknown"), lastException);
+    }
+
+    private HttpRequest buildHttpRequest(String url, String body) {
         try {
             GoogleCredentials credentials = credentialsProvider.getCredentials();
             credentials.refreshIfExpired();
             String token = credentials.getAccessToken().getTokenValue();
-            var requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Authorization", "Bearer " + token)
-                    .header("Content-Type", "application/json");
-            String quotaProject = credentialsProvider.getQuotaProject();
-            if (quotaProject != null && !quotaProject.isEmpty()) {
-                requestBuilder.header(GcpCredentialsProvider.quotaProjectHeaderName(), quotaProject);
-            }
-            HttpRequest httpRequest = requestBuilder
-                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-
-            if (response.statusCode() != 200) {
-                throw new RuntimeException("REST API error: " + response.statusCode() + " " + response.body());
-            }
-
-            var result = parseResponse(response.body());
-            if (log.isDebugEnabled()) {
-                log.debug("Conversational search: requestConvId={} responseConvId={} query={}",
-                        request.conversationId(), result.conversationId(), request.query());
-            }
-            return result;
-        } catch (Exception e) {
-            throw new RuntimeException("REST conversational search failed: " + e.getMessage(), e);
+        var requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json");
+        String quotaProject = credentialsProvider.getQuotaProject();
+        if (quotaProject != null && !quotaProject.isEmpty()) {
+            requestBuilder.header(GcpCredentialsProvider.quotaProjectHeaderName(), quotaProject);
         }
+        return requestBuilder
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to build REST request: " + e.getMessage(), e);
+        }
+    }
+
+    /** True for network/IO errors that may be transient. */
+    private static boolean isRetryableException(Exception e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        return e instanceof IOException
+                || msg.contains("Connection reset")
+                || msg.contains("connection refused")
+                || msg.contains("timeout")
+                || msg.contains("503")
+                || msg.contains("502")
+                || msg.contains("504")
+                || msg.contains("429");
     }
 
     private String buildRequestBody(ConversationalCommerceRequest request) {

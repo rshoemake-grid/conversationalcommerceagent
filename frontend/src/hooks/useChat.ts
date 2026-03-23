@@ -78,6 +78,17 @@ function toTitleCase(s: string): string {
   if (s.length === 1) return s.toUpperCase();
   return s[0].toUpperCase() + s.slice(1).toLowerCase();
 }
+
+/** Last non-empty refinedQuery from assistant messages. Used for no-preference recovery when INTENT_REFINEMENT has no refinedQuery. */
+function getLastNonEmptyRefinedQuery(messages: Message[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'assistant' && !m.isError && m.refinedQuery?.trim()) {
+      return m.refinedQuery.trim();
+    }
+  }
+  return undefined;
+}
 function extractValueFromSuggestedAnswer(item: unknown): string | null {
   if (typeof item === 'string' && item.trim()) return item.trim();
   if (item && typeof item === 'object') {
@@ -311,6 +322,7 @@ export function useChat() {
       imageBase64: rawBase64,
       previousAssistantText: lastAssistant?.content,
       previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
+      previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
     });
   }, [loading, pendingImage, sendMessage, messages]);
 
@@ -325,7 +337,7 @@ export function useChat() {
       sendMessage(t, {
         previousAssistantText: lastAssistant?.content,
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
-        previousRefinedQuery: lastAssistant?.refinedQuery,
+        previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
       });
     },
     [loading, sendMessage, messages]
@@ -340,7 +352,7 @@ export function useChat() {
       sendMessage(t, {
         previousAssistantText: lastAssistant?.content,
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
-        previousRefinedQuery: lastAssistant?.refinedQuery,
+        previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
       });
     },
     [loading, sendMessage, messages]
@@ -362,7 +374,7 @@ export function useChat() {
         imageBase64,
         previousAssistantText: lastAssistant?.content,
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
-        previousRefinedQuery: lastAssistant?.refinedQuery,
+        previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
       });
     },
     [sendMessage, messages]
@@ -384,7 +396,7 @@ export function useChat() {
         imageBase64,
         previousAssistantText: prevAssistant?.content,
         previousSuggestedAnswers: prevAssistant?.suggestedAnswers,
-        previousRefinedQuery: prevAssistant?.refinedQuery,
+        previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? prevAssistant?.refinedQuery,
       });
     }
   }, [messages, loading, sendMessage]);

@@ -226,13 +226,13 @@ When the agent asks a follow-up question without suggested answers (e.g. "Do you
 6. If `refinedQuery` present, `RetailSearchClient` runs product search.
 7. Response built as `AgentResponse` → `ChatResponse`.
 8. Frontend appends assistant message, filters failed suggested answers, slices by `maxSuggestedAnswers`.
-9. **RETAIL_IRRELEVANT recovery**: When the user says "Any", "no", or "no preference" and the API returns RETAIL_IRRELEVANT, the backend uses `previousRefinedQuery` from context to run a product search and returns results instead of "I didn't understand your response."
+9. **No-preference recovery**: When the user says "Any", "no", or "no preference" and the API returns empty `refinedQuery`, the backend uses `previousRefinedQuery` from context to run a product search. Handles both RETAIL_IRRELEVANT and SIMPLE_PRODUCT_SEARCH regression (e.g. API asks stock type again after the user selected "Any" for rice refinement).
 
 ### Suggested Answers
 
 - GCP returns suggested answers in response JSON.
 - Backend parses and maps brand codes to display text (e.g. NIKE → Nike).
-- **"Any" for follow-up questions**: When the agent asks a follow-up question (text contains "?") but the API provides no suggested answers, we add an "Any" option so the user can indicate no preference with one click. Selecting "Any" triggers the RETAIL_IRRELEVANT recovery flow (search using previous refined query).
+- **"Any" for follow-up questions**: When the agent asks a follow-up question (text contains "?") but the API provides no suggested answers, we add an "Any" option so the user can indicate no preference with one click. Selecting "Any" triggers the no-preference recovery flow (search using previous refined query).
 - Frontend tracks `failedSuggestedValuesRef`: suggestions that returned same assistant text (no products) are hidden.
 - `maxSuggestedAnswers` caps displayed count; applies in real time.
 - "Get more suggestions" resends last user message and clears failed set.

@@ -65,21 +65,39 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         List<AgentResponse.ProductResult> products = List.of();
         String searchQuery = result.refinedQuery();
         boolean usedNoPreferenceRecovery = false;
+        boolean usedStorageTypeRecovery = false;
+        String storageTypeFilter = null;
 
-        // When RETAIL_IRRELEVANT and user said "Any"/"no preference", use previous refined query to search
-        if ("RETAIL_IRRELEVANT".equals(result.queryType()) && isNoPreference(query)
-                && (searchQuery == null || searchQuery.isEmpty())) {
+        // When user said "Any"/"no preference" and API returns empty refinedQuery, use previous refined query to search.
+        if (isNoPreference(query) && (searchQuery == null || searchQuery.isEmpty())) {
             String prevRefined = (String) context.get("previousRefinedQuery");
             if (prevRefined != null && !prevRefined.isBlank()) {
                 searchQuery = prevRefined.trim();
                 usedNoPreferenceRecovery = true;
-                log.debug("RETAIL_IRRELEVANT + no-preference: using previousRefinedQuery \"{}\"", searchQuery);
+                log.debug("No-preference recovery (queryType={}): using previousRefinedQuery \"{}\"", result.queryType(), searchQuery);
+            }
+        }
+
+        // When user selected a storage-type suggested answer (S, R, D), use previousRefinedQuery for product search
+        // and add storage filter. Avoids treating "DRY_STORAGE" as search text (matches "dry storage" in names).
+        if (!usedNoPreferenceRecovery && isStorageTypeSelection(query, originalUserInput, context)) {
+            String prevRefined = (String) context.get("previousRefinedQuery");
+            if (prevRefined != null && !prevRefined.isBlank()) {
+                searchQuery = prevRefined.trim();
+                storageTypeFilter = buildStorageTypeFilter(expandStorageTypeValue(query));
+                usedStorageTypeRecovery = true;
+                log.debug("Storage-type selection recovery: using previousRefinedQuery \"{}\" + filter {}", searchQuery, storageTypeFilter);
             }
         }
 
         if (searchQuery != null && !searchQuery.isEmpty()) {
             try {
                 String filter = buildBrandFilterWhenApplicable(query, result.suggestedAnswers(), context);
+                if (storageTypeFilter != null) {
+                    filter = (filter != null && !filter.isBlank())
+                            ? filter + " AND " + storageTypeFilter
+                            : storageTypeFilter;
+                }
                 products = searchClient.search(
                         config.placement(),
                         config.branch(),
@@ -94,22 +112,23 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         }
 
         String text = result.text() != null ? result.text() : "";
-        if (usedNoPreferenceRecovery) {
+        if (usedNoPreferenceRecovery || usedStorageTypeRecovery) {
             if (!products.isEmpty()) {
                 int n = products.size();
                 text = n == 1
                         ? "I found 1 product matching your request."
                         : "I found " + n + " products matching your request.";
-            } else {
+            } else if (!usedStorageTypeRecovery) {
                 text = "No products found.";
             }
+            // When storage-type recovery returns no products, fall through to previous-agent fallback below
         }
         List<AgentResponse.ProductResult> productsToReturn = products;
         int productCountThreshold = 8;
         if (products.isEmpty()) {
             log.info("Products empty; userQueryType={}", result.queryType() != null ? result.queryType() : "(none)");
         }
-        String refinedQuery = (usedNoPreferenceRecovery && searchQuery != null) ? searchQuery : result.refinedQuery();
+        String refinedQuery = ((usedNoPreferenceRecovery || usedStorageTypeRecovery) && searchQuery != null) ? searchQuery : result.refinedQuery();
         boolean isSearchingFallback = text.startsWith("Searching for:");
         boolean useConvoCommerceOnly = "convo_commerce".equals(context.get("orchestrationMode"));
         boolean hasRefinedQuery = refinedQuery != null && !refinedQuery.isEmpty();
@@ -117,36 +136,93 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers = result.suggestedAnswers() != null ? result.suggestedAnswers() : List.of();
         String responseSource = result.source() != null ? result.source() : "agent";
 
-        // When SIMPLE_PRODUCT_SEARCH, no products, no follow-up: show previous agent response with suggested answers minus the one just tried (if we have that context)
+        // When only one suggested answer is given, auto-run it instead of asking
+        boolean usedAutoRunSingleSuggestion = false;
+        if (suggestedAnswers.size() == 1 && "SIMPLE_PRODUCT_SEARCH".equals(result.queryType())) {
+            String baseQuery = (String) context.get("previousRefinedQuery");
+            if (baseQuery == null || baseQuery.isBlank()) baseQuery = result.refinedQuery();
+            if (baseQuery != null && !baseQuery.isBlank()) {
+                String soleValue = suggestedAnswers.get(0).value();
+                if (soleValue != null && !soleValue.isBlank()) {
+                    var autoResult = tryAutoRunSingleSuggestion(baseQuery.trim(), soleValue, result.suggestedAnswers(), context, visitorId);
+                    if (autoResult != null) {
+                        products = autoResult.products();
+                        productsToReturn = autoResult.products();
+                        text = autoResult.text();
+                        suggestedAnswers = List.of();
+                        responseSource = "app";
+                        usedAutoRunSingleSuggestion = true;
+                    }
+                }
+            }
+        }
+
+        // When SIMPLE_PRODUCT_SEARCH or storage-type recovery, no products: show previous question with suggested answers minus the one tried
         boolean simpleProductSearchNoProducts = "SIMPLE_PRODUCT_SEARCH".equals(result.queryType())
                 && products.isEmpty()
                 && (text == null || text.isEmpty() || text.startsWith("Searching for:"));
+        boolean storageTypeRecoveryNoProducts = usedStorageTypeRecovery && products.isEmpty();
         boolean usedPreviousAgentFallback = false;
-        if (simpleProductSearchNoProducts) {
+        if (simpleProductSearchNoProducts || storageTypeRecoveryNoProducts) {
             String prevText = (String) context.get("previousAssistantText");
-            if (prevText != null && !prevText.isBlank()) {
-                text = prevText;
-                @SuppressWarnings("unchecked")
-                var prevList = (List<Map<String, String>>) context.get("previousSuggestedAnswers");
-                if (prevList != null && !prevList.isEmpty()) {
-                    suggestedAnswers = prevList.stream()
-                            .filter(m -> !originalUserInput.trim().equals(m.getOrDefault("value", "").trim()))
+            @SuppressWarnings("unchecked")
+            var prevList = (List<Map<String, String>>) context.get("previousSuggestedAnswers");
+            List<ConversationalCommerceClient.SuggestedAnswer> remaining = prevList != null && !prevList.isEmpty()
+                    ? prevList.stream()
+                            .filter(m -> !originalUserInput.trim().equals(m.getOrDefault("value", "").trim())
+                                    && !originalUserInput.trim().equalsIgnoreCase(m.getOrDefault("displayText", "").trim()))
                             .map(m -> new ConversationalCommerceClient.SuggestedAnswer(
                                     m.getOrDefault("displayText", m.getOrDefault("value", "")),
                                     m.getOrDefault("value", "")))
-                            .toList();
-                } else if (!suggestedAnswers.isEmpty()) {
-                    suggestedAnswers = suggestedAnswers.stream()
+                            .toList()
+                    : (suggestedAnswers != null ? suggestedAnswers.stream()
                             .filter(sa -> !originalUserInput.trim().equals(sa.value() != null ? sa.value().trim() : ""))
-                            .toList();
+                            .toList() : List.of());
+
+            // When only one option remains, auto-run it instead of re-asking
+            if (storageTypeRecoveryNoProducts && remaining.size() == 1 && prevText != null && !prevText.isBlank()) {
+                String prevRefined = (String) context.get("previousRefinedQuery");
+                if (prevRefined != null && !prevRefined.isBlank()) {
+                    String soleValue = remaining.get(0).value();
+                    String canonical = expandStorageTypeValue(soleValue);
+                    if (canonical != null) {
+                        try {
+                            String stFilter = buildStorageTypeFilter(canonical);
+                            List<AgentResponse.ProductResult> autoProducts = searchClient.search(
+                                    config.placement(), config.branch(), prevRefined.trim(), visitorId, stFilter);
+                            autoProducts = enrichmentService.enrich(autoProducts);
+                            products = autoProducts;
+                            productsToReturn = autoProducts;
+                            if (!autoProducts.isEmpty()) {
+                                int n = autoProducts.size();
+                                text = n == 1 ? "I found 1 product matching your request." : "I found " + n + " products matching your request.";
+                            } else {
+                                text = "No products found.";
+                            }
+                            suggestedAnswers = List.of();
+                            responseSource = "app";
+                            usedPreviousAgentFallback = true;
+                        } catch (Exception e) {
+                            log.warn("Auto-run last storage option failed: {}", e.getMessage());
+                        }
+                    }
                 }
+            }
+
+            if (!usedPreviousAgentFallback && prevText != null && !prevText.isBlank()) {
+                boolean alreadyHasPrefix = prevText != null && prevText.contains("No products found for that option.");
+                text = (storageTypeRecoveryNoProducts && !alreadyHasPrefix)
+                        ? "No products found for that option.\n\n" + prevText
+                        : prevText;
+                suggestedAnswers = remaining;
                 responseSource = "app";
                 usedPreviousAgentFallback = true;
             }
         }
         if (useConvoCommerceOnly) {
             // Approach A: Pass through agent response as-is; no app overrides
-            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery) {
+            // Never clear products when user said "Any" and we recovered with previousRefinedQuery
+            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion) {
                 productsToReturn = List.of();
             } else if (!products.isEmpty() && isSearchingFallback) {
                 // Replace "Searching for: X" placeholder with a proper count when we have products
@@ -165,7 +241,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         }
         if (!useConvoCommerceOnly) {
             // Approach B: Use our clarifying logic when many products
-            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery) {
+            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion) {
                 String categoryHint = refinedQuery != null ? refinedQuery : "products";
                 int productCount = products.size();
                 text = clarifyingGenerator
@@ -175,11 +251,13 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                 productsToReturn = List.of();
                 responseSource = "app";
             } else if (!products.isEmpty()) {
-                int n = products.size();
-                String countPhrase = n == 1
-                        ? "I found 1 product matching your request."
-                        : "I found " + n + " products matching your request.";
-                text = (text.isEmpty() || isSearchingFallback) ? countPhrase : countPhrase + "\n\n" + text;
+                if (!usedNoPreferenceRecovery && !usedStorageTypeRecovery && !usedAutoRunSingleSuggestion) {
+                    int n = products.size();
+                    String countPhrase = n == 1
+                            ? "I found 1 product matching your request."
+                            : "I found " + n + " products matching your request.";
+                    text = (text.isEmpty() || isSearchingFallback) ? countPhrase : countPhrase + "\n\n" + text;
+                }
                 responseSource = "app";
             } else if (products.isEmpty() && hasRefinedQuery && !usedPreviousAgentFallback) {
                 // Always show "No products found" when search returns empty. Include agent context if meaningful (not placeholder).
@@ -191,6 +269,12 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
 
         if (suggestedAnswers.isEmpty() && text != null && text.contains("?")) {
             suggestedAnswers = List.of(new ConversationalCommerceClient.SuggestedAnswer("Any", "ANY"));
+        }
+        // Ensure no-preference/storage-type recovery always returns products when we have them
+        if ((usedNoPreferenceRecovery || usedStorageTypeRecovery) && !products.isEmpty()) {
+            productsToReturn = products;
+            responseSource = "app";
+            log.info("{}: returning {} products", usedStorageTypeRecovery ? "Storage-type recovery" : "No-preference recovery", productsToReturn.size());
         }
         return AgentResponse.builder()
                 .text(text)
@@ -259,8 +343,12 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         return null;
     }
 
+    private static final java.util.Set<String> STORAGE_TYPE_VALUES = java.util.Set.of(
+            "FROZEN", "REFRIGERATED", "AMBIENT", "DRY_STORAGE", "F", "C", "S", "R", "D"
+    );
+
     private static final java.util.Set<String> NON_BRAND_VALUES = java.util.Set.of(
-            "FROZEN", "REFRIGERATED", "AMBIENT", "DRY_STORAGE", "COLD", "F", "C", "ANY"
+            "FROZEN", "REFRIGERATED", "AMBIENT", "DRY_STORAGE", "COLD", "F", "C", "S", "R", "D", "ANY"
     );
 
     private static final java.util.Set<String> NO_PREFERENCE_PHRASES = java.util.Set.of(
@@ -274,6 +362,81 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         if (NO_PREFERENCE_PHRASES.contains(n)) return true;
         if (n.replace("'", "").replace(" ", "").equals("NOPREFERENCE")) return true;
         return n.equals("NO PREFERENCE") || n.startsWith("NO PREFERENCE");
+    }
+
+    /** True when user selected a storage-type suggested answer (S, R, D) that expanded to a canonical storage value. */
+    private static boolean isStorageTypeSelection(String expandedQuery, String originalUserInput, Map<String, Object> context) {
+        if (expandedQuery == null || expandedQuery.isBlank() || !STORAGE_TYPE_VALUES.contains(expandedQuery.trim().toUpperCase()))
+            return false;
+        @SuppressWarnings("unchecked")
+        var prevList = (List<Map<String, String>>) context.get("previousSuggestedAnswers");
+        if (prevList == null) return false;
+        String trimmed = originalUserInput != null ? originalUserInput.trim() : "";
+        for (var m : prevList) {
+            String displayText = m.getOrDefault("displayText", "").trim();
+            String value = m.getOrDefault("value", "").trim();
+            if (trimmed.equalsIgnoreCase(displayText) || trimmed.equals(value)) return true;
+        }
+        return false;
+    }
+
+    private static String buildStorageTypeFilter(String canonicalValue) {
+        if (canonicalValue == null || canonicalValue.isBlank()) return null;
+        String escaped = canonicalValue.trim().replace("\\", "\\\\").replace("\"", "\\\"");
+        return "attributes.storageType: ANY(\"" + escaped + "\")";
+    }
+
+    /** Try to run a search for a single suggestion; returns null if not applicable or search fails. */
+    private AutoRunResult tryAutoRunSingleSuggestion(String baseQuery, String value, List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers,
+                                                     Map<String, Object> context, String visitorId) {
+        try {
+            String canonical = expandStorageTypeValue(value);
+            if (canonical != null && STORAGE_TYPE_VALUES.contains(canonical.toUpperCase())) {
+                String filter = buildStorageTypeFilter(canonical);
+                var prods = searchClient.search(config.placement(), config.branch(), baseQuery, visitorId, filter);
+                prods = enrichmentService.enrich(prods);
+                String msg = prods.isEmpty() ? "No products found." : (prods.size() == 1 ? "I found 1 product matching your request." : "I found " + prods.size() + " products matching your request.");
+                return new AutoRunResult(prods, msg);
+            }
+            String brandFilter = buildBrandFilterWhenApplicable(value, suggestedAnswers, context);
+            if (brandFilter != null) {
+                var prods = searchClient.search(config.placement(), config.branch(), baseQuery, visitorId, brandFilter);
+                prods = enrichmentService.enrich(prods);
+                String msg = prods.isEmpty() ? "No products found." : (prods.size() == 1 ? "I found 1 product matching your request." : "I found " + prods.size() + " products matching your request.");
+                return new AutoRunResult(prods, msg);
+            }
+            String query = (baseQuery + " " + value).trim();
+            var prods = searchClient.search(config.placement(), config.branch(), query, visitorId, null);
+            prods = enrichmentService.enrich(prods);
+            String msg = prods.isEmpty() ? "No products found." : (prods.size() == 1 ? "I found 1 product matching your request." : "I found " + prods.size() + " products matching your request.");
+            return new AutoRunResult(prods, msg);
+        } catch (Exception e) {
+            log.warn("Auto-run single suggestion failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private record AutoRunResult(List<AgentResponse.ProductResult> products, String text) {}
+
+    /** Expand short storage code (S, R, D) or display text to canonical value for filters. D/R/S are suggested-answer values sent to GCP as-is. */
+    private String expandStorageTypeValue(String value) {
+        if (value == null || value.isBlank()) return null;
+        String trimmed = value.trim().toUpperCase();
+        return switch (trimmed) {
+            case "D" -> "DRY_STORAGE";
+            case "R" -> "REFRIGERATED";
+            case "S" -> "AMBIENT";
+            default -> {
+                var expansion = config.getAttributeValueExpansion();
+                if (expansion == null) yield value.trim();
+                var storageMap = expansion.get("storageType");
+                if (storageMap == null) yield value.trim();
+                String resolved = findExpansionMatch(storageMap, value.trim());
+                if (resolved != null && ("D".equals(resolved) || "R".equals(resolved) || "S".equals(resolved)))
+                    yield switch (resolved) { case "D" -> "DRY_STORAGE"; case "R" -> "REFRIGERATED"; case "S" -> "AMBIENT"; default -> resolved; };
+                yield resolved != null ? resolved : value.trim();
+            }
+        };
     }
 
     /** Add brand filter only when user selected a suggested answer that looks like a brand (not storage type, not a search term like "shrimp"). */

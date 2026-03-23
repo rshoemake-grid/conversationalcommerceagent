@@ -300,6 +300,79 @@ describe('useChat', () => {
     expect(secondAssistant.suggestedAnswers?.map((s) => s.value)).toEqual(['CAB'])
   })
 
+  it('displays products when no-preference recovery returns product count text', async () => {
+    const products = Array(5)
+      .fill(null)
+      .map((_, i) => ({
+        id: `p${i}`,
+        title: `Rice ${i + 1}`,
+        description: 'Desc',
+        price: '$5',
+      }));
+    vi.mocked(chatApi.sendChatMessage).mockResolvedValue({
+      text: 'I found 5 products matching your request.',
+      conversationId: 'c1',
+      refinedQuery: 'rice',
+      products,
+      source: 'app',
+      queryType: 'RETAIL_IRRELEVANT',
+    });
+
+    const { result } = renderHook(() => useChat())
+    act(() => result.current.setInput('Any'))
+    await act(async () => result.current.handleSend())
+
+    expect(result.current.messages).toHaveLength(2)
+    const assistantMsg = result.current.messages[1]
+    expect(assistantMsg.content).toBe('I found 5 products matching your request.')
+    expect(assistantMsg.products).toHaveLength(5)
+  })
+
+  it('passes last non-empty refinedQuery for no-preference recovery when last assistant has none', async () => {
+    const sendSpy = vi.mocked(chatApi.sendChatMessage)
+    sendSpy
+      .mockResolvedValueOnce({
+        text: 'What type of stock do you prefer?',
+        conversationId: 'c1',
+        refinedQuery: 'rice',
+        suggestedAnswers: [
+          { displayText: 'S', value: 'S' },
+          { displayText: 'R', value: 'R' },
+          { displayText: 'D', value: 'D' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        text: 'Are you looking for long grain or short grain rice?',
+        conversationId: 'c1',
+        refinedQuery: '',
+        suggestedAnswers: [{ displayText: 'Any', value: 'ANY' }],
+      })
+      .mockResolvedValueOnce({
+        text: 'I found 5 products matching your request.',
+        conversationId: 'c1',
+        refinedQuery: 'rice',
+        products: Array(5).fill({ id: 'p1', title: 'Rice', description: '', price: '' }),
+      })
+
+    const { result } = renderHook(() => useChat())
+    act(() => result.current.setInput('I want rice'))
+    await act(async () => result.current.handleSend())
+
+    act(() => result.current.handleSuggestedAnswer('D'))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    act(() => result.current.handleSuggestedAnswer('Any'))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50))
+    })
+
+    expect(sendSpy).toHaveBeenCalledTimes(3)
+    const thirdCall = sendSpy.mock.calls[2][0]
+    expect(thirdCall.previousRefinedQuery).toBe('rice')
+  })
+
   it('startNewConversation clears messages, conversationId, input, and pending image', async () => {
     vi.mocked(chatApi.sendChatMessage).mockResolvedValue({
       text: 'Hi!',
