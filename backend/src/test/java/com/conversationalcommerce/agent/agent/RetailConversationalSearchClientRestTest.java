@@ -142,6 +142,37 @@ class RetailConversationalSearchClientRestTest {
                 .containsExactly("NIKE", "ADIDAS");
     }
 
+    @Test
+    void parseResponse_resolvesStorageTypeDisplayNamesForShortCodes() {
+        var config = new ConversationalCommerceConfig();
+        config.setPlacement("projects/p/locations/global/catalogs/default_catalog/placements/default_search");
+        config.setBranch("projects/p/locations/global/catalogs/default_catalog/branches/default_branch");
+        config.setConversationalFilteringMode("ENABLED");
+        config.setAttributeDisplayMapping(java.util.Map.of(
+                "storageType", java.util.Map.of("S", "Ambient", "R", "Refrigerated", "D", "Dry storage")
+        ));
+        var resolver = new BrandDisplayResolver(config, null);
+        client = new RetailConversationalSearchClientRest(config, null, resolver);
+
+        String json = """
+            {
+              "conversationId": "conv-1",
+              "conversationalFilteringResult": {
+                "followupQuestion": "What type of stock do you prefer?",
+                "suggestedAnswers": [
+                  {"productAttributeValue": {"value": "S"}},
+                  {"productAttributeValue": {"value": "R"}}
+                ]
+              }
+            }
+            """;
+        var result = invokeParseResponse(json);
+        assertThat(result.suggestedAnswers()).extracting(ConversationalCommerceClient.SuggestedAnswer::displayText)
+                .containsExactly("Ambient", "Refrigerated");
+        assertThat(result.suggestedAnswers()).extracting(ConversationalCommerceClient.SuggestedAnswer::value)
+                .containsExactly("S", "R");
+    }
+
     private ConversationalCommerceClient.ConversationalCommerceResult invokeParseResponse(String json) {
         return (ConversationalCommerceClient.ConversationalCommerceResult)
                 ReflectionTestUtils.invokeMethod(client, "parseResponse", json);

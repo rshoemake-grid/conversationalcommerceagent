@@ -45,13 +45,14 @@ public class BrandDisplayResolver {
     public String resolveDisplayText(String attributeName, String value, String searchQueryHint) {
         if (value == null || value.isBlank()) return value;
         String attrKeyOriginal = attributeName != null ? attributeName.replaceFirst("^attributes\\.", "") : "";
-        String attrKey = attrKeyOriginal.toLowerCase();
+        String attrKey = attrKeyOriginal != null ? attrKeyOriginal.toLowerCase() : "";
 
-        // 1. Config mapping
+        // 1. Config mapping (by attribute name). Treat stockType as storageType (GCP uses attributes.stockType).
         var mapping = config.getAttributeDisplayMapping();
         if (attrKey != null && !attrKey.isEmpty() && mapping != null) {
+            String lookupKey = "stockType".equalsIgnoreCase(attrKey) ? "storageType" : attrKey;
             for (var entry : mapping.entrySet()) {
-                if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(attrKey)) {
+                if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(lookupKey)) {
                     var valueMap = entry.getValue();
                     if (valueMap != null && valueMap.containsKey(value)) {
                         String mapped = valueMap.get(value);
@@ -59,6 +60,15 @@ public class BrandDisplayResolver {
                     }
                     break;
                 }
+            }
+        }
+
+        // 1b. When no attribute name, try storageType mapping for S/R/D/F/C (common stock-type short codes)
+        if ((attrKey == null || attrKey.isEmpty()) && mapping != null) {
+            var storageMap = mapping.get("storageType");
+            if (storageMap != null && storageMap.containsKey(value)) {
+                String mapped = storageMap.get(value);
+                if (mapped != null && !mapped.isEmpty()) return mapped;
             }
         }
 

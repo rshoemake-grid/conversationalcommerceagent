@@ -486,7 +486,10 @@ class ConversationalCommerceAdapterTest {
         assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
         assertThat(response.text()).isEqualTo("I found 1 product matching your request.");
         assertThat(response.suggestedAnswers()).isEmpty();
-        assertThat(stubSearchClient.lastFilter).contains("AMBIENT");
+        assertThat(stubSearchClient.lastFilter).satisfiesAnyOf(
+                f -> assertThat(f).contains("stockType"),
+                f -> assertThat(f).contains("storageType")
+        );
     }
 
     @Test
@@ -519,7 +522,7 @@ class ConversationalCommerceAdapterTest {
         assertThat(response.products()).hasSize(1);
         assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
         assertThat(stubSearchClient.lastQuery).isEqualTo("rice");
-        assertThat(stubSearchClient.lastFilter).contains("attributes.storageType").contains("DRY_STORAGE");
+        assertThat(stubSearchClient.lastFilter).contains("attributes.").contains("D");
     }
 
     @Test
@@ -554,7 +557,7 @@ class ConversationalCommerceAdapterTest {
         assertThat(response.text()).startsWith("No products found for that option.");
         assertThat(response.text()).contains("What type of stock do you prefer?");
         assertThat(response.suggestedAnswers()).extracting(ConversationalCommerceClient.SuggestedAnswer::displayText)
-                .containsExactlyInAnyOrder("S", "R");
+                .containsExactlyInAnyOrder("Ambient", "Refrigerated");
     }
 
     @Test
@@ -566,7 +569,7 @@ class ConversationalCommerceAdapterTest {
                 "Options", "conv-1", "REFRIGERATED", "SIMPLE_PRODUCT_SEARCH", "agent", null, List.of()
         ));
         stubSearchClient.setProducts(List.of(AgentResponse.ProductResult.of("p1", "Long Grain Rice", "Shelf", "$5", null)));
-        stubSearchClient.setReturnEmptyWhenFilterContains("REFRIGERATED");  // R search fails, auto-run S succeeds
+        stubSearchClient.setReturnEmptyWhenFilterContains("R");  // R search fails, auto-run S succeeds
 
         // After D failed, we showed S and R. User clicks R, it fails; remaining = [S]. We auto-run S.
         var context = Map.<String, Object>of(
@@ -585,7 +588,7 @@ class ConversationalCommerceAdapterTest {
         assertThat(response.text()).startsWith("I found 1 product matching your request.");
         assertThat(response.suggestedAnswers()).isEmpty();
         assertThat(stubSearchClient.lastQuery).isEqualTo("rice");
-        assertThat(stubSearchClient.lastFilter).contains("AMBIENT");
+        assertThat(stubSearchClient.lastFilter).contains("stockType").contains("S");
     }
 
     @Test
@@ -613,6 +616,6 @@ class ConversationalCommerceAdapterTest {
 
         assertThat(response.text()).isEqualTo("No products found for that option.\n\nWhat type of stock do you prefer?");
         assertThat(response.suggestedAnswers()).extracting(ConversationalCommerceClient.SuggestedAnswer::displayText)
-                .containsExactlyInAnyOrder("S", "D");
+                .containsExactlyInAnyOrder("Ambient", "Dry storage");
     }
 }

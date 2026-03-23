@@ -15,6 +15,8 @@ public class ConversationalCommerceConfig {
     private String transport = "rest";
     /** "DISABLED" (default), "ENABLED", or "CONVERSATIONAL_FILTER_ONLY". ENABLED lets the agent ask follow-up questions. */
     private String conversationalFilteringMode = "DISABLED";
+    /** Filter attribute for stock/storage type (GCP often returns attributes.stockType). Use "stockType" or "storageType". */
+    private String stockTypeFilterAttribute = "stockType";
     /** Map attribute name -> (value -> display name) for suggested answers. E.g. brands: {NIKE: Nike, ADIDAS: Adidas} */
     private java.util.Map<String, java.util.Map<String, String>> attributeDisplayMapping = new java.util.HashMap<>();
     /** Map attribute name -> (short/user input -> canonical API value). Expands before sending to GCP when short codes cause RETAIL_IRRELEVANT. */
@@ -40,6 +42,13 @@ public class ConversationalCommerceConfig {
     }
     public void setConversationalFilteringMode(String mode) {
         this.conversationalFilteringMode = mode != null ? mode : "DISABLED";
+    }
+
+    public String stockTypeFilterAttribute() {
+        return stockTypeFilterAttribute != null && !stockTypeFilterAttribute.isBlank() ? stockTypeFilterAttribute : "stockType";
+    }
+    public void setStockTypeFilterAttribute(String v) {
+        this.stockTypeFilterAttribute = v != null ? v : "stockType";
     }
 
     public java.util.Map<String, java.util.Map<String, String>> getAttributeDisplayMapping() {

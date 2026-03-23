@@ -84,7 +84,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             String prevRefined = (String) context.get("previousRefinedQuery");
             if (prevRefined != null && !prevRefined.isBlank()) {
                 searchQuery = prevRefined.trim();
-                storageTypeFilter = buildStorageTypeFilter(expandStorageTypeValue(query));
+                storageTypeFilter = buildStorageTypeFilter(query);
                 usedStorageTypeRecovery = true;
                 log.debug("Storage-type selection recovery: using previousRefinedQuery \"{}\" + filter {}", searchQuery, storageTypeFilter);
             }
@@ -184,10 +184,13 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
                 String prevRefined = (String) context.get("previousRefinedQuery");
                 if (prevRefined != null && !prevRefined.isBlank()) {
                     String soleValue = remaining.get(0).value();
-                    String canonical = expandStorageTypeValue(soleValue);
-                    if (canonical != null) {
+                    // For stockType (GCP), use S/R/D directly; for storageType catalogs use canonical (AMBIENT etc.)
+                    String filterValue = ("S".equals(soleValue.trim()) || "R".equals(soleValue.trim()) || "D".equals(soleValue.trim()))
+                            ? soleValue.trim()
+                            : expandStorageTypeValue(soleValue);
+                    if (filterValue != null) {
                         try {
-                            String stFilter = buildStorageTypeFilter(canonical);
+                            String stFilter = buildStorageTypeFilter(filterValue);
                             List<AgentResponse.ProductResult> autoProducts = searchClient.search(
                                     config.placement(), config.branch(), prevRefined.trim(), visitorId, stFilter);
                             autoProducts = enrichmentService.enrich(autoProducts);
@@ -270,6 +273,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         if (suggestedAnswers.isEmpty() && text != null && text.contains("?")) {
             suggestedAnswers = List.of(new ConversationalCommerceClient.SuggestedAnswer("Any", "ANY"));
         }
+        suggestedAnswers = applyStorageTypeDisplayMapping(suggestedAnswers);
         // Ensure no-preference/storage-type recovery always returns products when we have them
         if ((usedNoPreferenceRecovery || usedStorageTypeRecovery) && !products.isEmpty()) {
             productsToReturn = products;
@@ -380,19 +384,43 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         return false;
     }
 
-    private static String buildStorageTypeFilter(String canonicalValue) {
-        if (canonicalValue == null || canonicalValue.isBlank()) return null;
-        String escaped = canonicalValue.trim().replace("\\", "\\\\").replace("\"", "\\\"");
-        return "attributes.storageType: ANY(\"" + escaped + "\")";
+    /** Build filter for stock/storage type. Uses config attribute (stockType default); value is S/R/D for stockType catalogs. */
+    private String buildStorageTypeFilter(String value) {
+        if (value == null || value.isBlank()) return null;
+        String attr = config.stockTypeFilterAttribute();
+        String escaped = value.trim().replace("\\", "\\\\").replace("\"", "\\\"");
+        return "attributes." + attr + ": ANY(\"" + escaped + "\")";
+    }
+
+    private static final java.util.Map<String, String> STORAGE_DISPLAY_DEFAULTS = java.util.Map.of(
+            "S", "Ambient", "R", "Refrigerated", "D", "Dry storage",
+            "F", "Frozen", "C", "Refrigerated"
+    );
+
+    /** Apply storageType display mapping so S/R/D show as Ambient/Refrigerated/Dry storage. */
+    private List<ConversationalCommerceClient.SuggestedAnswer> applyStorageTypeDisplayMapping(List<ConversationalCommerceClient.SuggestedAnswer> list) {
+        if (list == null || list.isEmpty()) return list;
+        var storageMap = config.getAttributeDisplayMapping() != null ? config.getAttributeDisplayMapping().get("storageType") : null;
+        return list.stream()
+                .map(sa -> {
+                    String v = sa.value();
+                    if (v == null) return sa;
+                    String display = (storageMap != null && storageMap.containsKey(v)) ? storageMap.get(v) : STORAGE_DISPLAY_DEFAULTS.get(v);
+                    if (display == null || display.equals(sa.displayText())) return sa;
+                    return new ConversationalCommerceClient.SuggestedAnswer(display, v);
+                })
+                .toList();
     }
 
     /** Try to run a search for a single suggestion; returns null if not applicable or search fails. */
     private AutoRunResult tryAutoRunSingleSuggestion(String baseQuery, String value, List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers,
                                                      Map<String, Object> context, String visitorId) {
         try {
-            String canonical = expandStorageTypeValue(value);
-            if (canonical != null && STORAGE_TYPE_VALUES.contains(canonical.toUpperCase())) {
-                String filter = buildStorageTypeFilter(canonical);
+            String normalized = (value != null ? value.trim().toUpperCase() : "");
+            if (STORAGE_TYPE_VALUES.contains(normalized) || (value != null && STORAGE_TYPE_VALUES.contains(value.trim()))) {
+                String filterValue = ("S".equals(normalized) || "R".equals(normalized) || "D".equals(normalized)) ? value.trim() : expandStorageTypeValue(value);
+                if (filterValue == null) filterValue = value;
+                String filter = buildStorageTypeFilter(filterValue);
                 var prods = searchClient.search(config.placement(), config.branch(), baseQuery, visitorId, filter);
                 prods = enrichmentService.enrich(prods);
                 String msg = prods.isEmpty() ? "No products found." : (prods.size() == 1 ? "I found 1 product matching your request." : "I found " + prods.size() + " products matching your request.");

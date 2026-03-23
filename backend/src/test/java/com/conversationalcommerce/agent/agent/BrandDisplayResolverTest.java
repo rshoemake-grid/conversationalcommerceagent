@@ -76,6 +76,18 @@ class BrandDisplayResolverTest {
         assertThat(resolver.resolveDisplayText("attributes.brands", "NIKE")).isEqualTo("Custom Nike");
     }
 
+    @Test
+    void resolve_storageTypeShortCodesWithoutAttributeName_usesDisplayMapping() {
+        config.setAttributeDisplayMapping(Map.of(
+                "storageType", Map.of("S", "Ambient", "R", "Refrigerated", "D", "Dry storage")
+        ));
+        resolver = new BrandDisplayResolver(config, null);
+
+        assertThat(resolver.resolveDisplayText(null, "S")).isEqualTo("Ambient");
+        assertThat(resolver.resolveDisplayText("", "R")).isEqualTo("Refrigerated");
+        assertThat(resolver.resolveDisplayText(null, "D")).isEqualTo("Dry storage");
+    }
+
     private static class StubSearchClient implements RetailSearchClient {
         @Override
         public List<AgentResponse.ProductResult> search(String placement, String branch, String query, String visitorId, String filter) {
