@@ -93,8 +93,72 @@ class RetailSearchClientRestTest {
         assertThat(p.price()).isEmpty();
         assertThat(p.imageUri()).isNull();
         assertThat(p.gtin()).isNull();
-        assertThat(p.productId()).isNull();
+        assertThat(p.productId()).isEqualTo("minimal");
         assertThat(p.categories()).isNull();
         assertThat(p.brands()).isNull();
+    }
+
+    @Test
+    void parseResponse_usesVariantRollupPriceWhenProductPriceMissing() {
+        String json = """
+            {
+              "results": [
+                {
+                  "id": "projects/p/products/6052075",
+                  "product": {
+                    "name": "projects/p/locations/global/catalogs/default_catalog/branches/1/products/6052075",
+                    "title": "Medium Grain Rice, 5 pounds",
+                    "images": [{"uri": "https://example.com/rice.png"}],
+                    "categories": ["Canned & Dry > Pasta and Rice"],
+                    "brands": ["LA PREF"]
+                  },
+                  "variantRollupValues": {
+                    "price": {"numberValue": 8.99}
+                  }
+                }
+              ]
+            }
+            """;
+        var client = new RetailSearchClientRest((GcpCredentialsProvider) null);
+        @SuppressWarnings("unchecked")
+        List<AgentResponse.ProductResult> results = (List<AgentResponse.ProductResult>)
+                ReflectionTestUtils.invokeMethod(client, "parseResponse", json);
+
+        assertThat(results).hasSize(1);
+        var p = results.get(0);
+        assertThat(p.price()).isEqualTo("$8.99");
+        assertThat(p.productId()).isEqualTo("6052075");
+    }
+
+    @Test
+    void parseResponse_usesFirstVariantPriceWhenProductAndRollupMissing() {
+        String json = """
+            {
+              "results": [
+                {
+                  "product": {
+                    "name": "projects/p/products/varied",
+                    "title": "T-Shirt",
+                    "variants": [
+                      {
+                        "priceInfo": {"price": 24.50},
+                        "description": "Blue cotton tee"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+            """;
+        var client = new RetailSearchClientRest((GcpCredentialsProvider) null);
+        @SuppressWarnings("unchecked")
+        List<AgentResponse.ProductResult> results = (List<AgentResponse.ProductResult>)
+                ReflectionTestUtils.invokeMethod(client, "parseResponse", json);
+
+        assertThat(results).hasSize(1);
+        var p = results.get(0);
+        assertThat(p.price()).isEqualTo("$24.50");
+        assertThat(p.description()).isEqualTo("Blue cotton tee");
+        assertThat(p.productId()).isEqualTo("varied");
     }
 }

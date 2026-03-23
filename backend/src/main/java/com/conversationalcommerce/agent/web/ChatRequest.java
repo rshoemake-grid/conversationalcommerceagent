@@ -13,7 +13,8 @@ public record ChatRequest(
         @Schema(description = "Optional image as base64 (multimodal search)") String imageBase64,
         @Schema(description = "Max suggested answers to return (null = no limit; frontend slices for display)") Integer maxSuggestedAnswers,
         @Schema(description = "Previous assistant message text (for no-products fallback when user retries a suggested answer)") String previousAssistantText,
-        @Schema(description = "Previous assistant suggested answers (for no-products fallback)") java.util.List<SuggestedAnswerInput> previousSuggestedAnswers
+        @Schema(description = "Previous assistant suggested answers (for no-products fallback)") java.util.List<SuggestedAnswerInput> previousSuggestedAnswers,
+        @Schema(description = "Previous refined query (for RETAIL_IRRELEVANT recovery when user says Any/no preference)") String previousRefinedQuery
 ) {
     public ChatRequest {
         message = message != null ? message : "";

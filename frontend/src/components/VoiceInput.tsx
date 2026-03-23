@@ -35,11 +35,23 @@ export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const onResultRef = useRef(onResult);
+  const stopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onResultRef.current = onResult;
+
+  const STOP_DELAY_MS = 400;
 
   const SpeechRecognitionClass =
     typeof window !== 'undefined' &&
     (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  useEffect(() => {
+    return () => {
+      if (stopTimeoutRef.current) {
+        clearTimeout(stopTimeoutRef.current);
+        stopTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!SpeechRecognitionClass) return;
@@ -74,6 +86,10 @@ export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
   }, [SpeechRecognitionClass]);
 
   const startListening = useCallback(() => {
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current);
+      stopTimeoutRef.current = null;
+    }
     const rec = recognitionRef.current;
     if (!rec || listening) return;
     rec.start();
@@ -83,8 +99,12 @@ export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
   const stopListening = useCallback(() => {
     const rec = recognitionRef.current;
     if (!rec || !listening) return;
-    rec.stop();
-    setListening(false);
+    if (stopTimeoutRef.current) return;
+    stopTimeoutRef.current = setTimeout(() => {
+      stopTimeoutRef.current = null;
+      rec.stop();
+      setListening(false);
+    }, STOP_DELAY_MS);
   }, [listening]);
 
   if (!SpeechRecognitionClass) return null;

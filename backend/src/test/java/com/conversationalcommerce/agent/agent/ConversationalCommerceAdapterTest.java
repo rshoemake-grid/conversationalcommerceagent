@@ -27,7 +27,7 @@ class ConversationalCommerceAdapterTest {
 
         stubClient = new StubConversationalCommerceClient();
         stubSearchClient = new StubRetailSearchClient();
-        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.empty());
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
     }
 
     @Test
@@ -131,7 +131,7 @@ class ConversationalCommerceAdapterTest {
     @Test
     void sendMessage_expandsShortStorageTypeBeforeSendingToApi() {
         config.setAttributeValueExpansion(Map.of("storageType", Map.of("F", "FROZEN", "C", "REFRIGERATED")));
-        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.empty());
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
 
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
                 "Here are frozen shrimp options",
@@ -154,7 +154,7 @@ class ConversationalCommerceAdapterTest {
     @Test
     void sendMessage_chainsExpansionWhenPreviousSuggestedAnswerHasShortValue() {
         config.setAttributeValueExpansion(Map.of("storageType", Map.of("C", "REFRIGERATED")));
-        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.empty());
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
 
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
                 "Here are refrigerated options",
@@ -213,7 +213,7 @@ class ConversationalCommerceAdapterTest {
                 return "What type of shrimp are you looking for? Raw, cooked, or peeled?";
             }
         };
-        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.of(stubGenerator));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.of(stubGenerator));
 
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
                 "Here are options", "conv-1", "Shrimp", "SIMPLE_PRODUCT_SEARCH", "agent", null, List.of()
@@ -269,7 +269,7 @@ class ConversationalCommerceAdapterTest {
                 return "Gemini-generated question";
             }
         };
-        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.of(stubGenerator));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.of(stubGenerator));
 
         String apiResponse = "I found many shoes. Could you tell me more about what you're looking for?";
         stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(

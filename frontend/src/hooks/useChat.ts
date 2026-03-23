@@ -39,6 +39,9 @@ function createAssistantMessage(response: { text?: string; products?: Message['p
       }));
     }
   }
+  if ((!suggestedAnswers || suggestedAnswers.length === 0) && text && text.includes('?')) {
+    suggestedAnswers = [{ displayText: 'Any', value: 'ANY' }];
+  }
   return {
     id: `a-${crypto.randomUUID()}`,
     role: 'assistant',
@@ -47,6 +50,7 @@ function createAssistantMessage(response: { text?: string; products?: Message['p
     source: response.source,
     queryType: response.queryType,
     suggestedAnswers,
+    refinedQuery: response.refinedQuery ?? undefined,
   };
 }
 
@@ -68,6 +72,7 @@ function toRawBase64(dataUrl: string): string {
 function looksLikeBrandCode(s: string): boolean {
   return /^[A-Z0-9]+$/.test(s) && s.length >= 2 && s.length <= 30;
 }
+
 function toTitleCase(s: string): string {
   if (!s || s.length === 0) return s;
   if (s.length === 1) return s.toUpperCase();
@@ -189,6 +194,7 @@ export function useChat() {
         removeErrorId?: string;
         previousAssistantText?: string;
         previousSuggestedAnswers?: SuggestedAnswer[];
+        previousRefinedQuery?: string;
       }
     ) => {
       if (loading) return;
@@ -213,6 +219,7 @@ export function useChat() {
           maxSuggestedAnswers: maxSuggestedAnswers > 0 ? maxSuggestedAnswers : undefined,
           previousAssistantText: options?.previousAssistantText,
           previousSuggestedAnswers: options?.previousSuggestedAnswers,
+          previousRefinedQuery: options?.previousRefinedQuery,
         });
         if (response.conversationId != null && response.conversationId !== '') {
           conversationIdRef.current = response.conversationId;
@@ -227,7 +234,11 @@ export function useChat() {
 
           let failedSet = failedSuggestedValuesRef.current;
           const noProducts = (response.products?.length ?? 0) === 0;
-          if (lastUserContent) {
+          const isDidNotUnderstand = responseText.includes("I didn't understand your response.");
+          if (isDidNotUnderstand) {
+            failedSuggestedValuesRef.current = new Set();
+            failedSet = new Set();
+          } else if (lastUserContent) {
             if (responseText === prevAssistantContent || (noProducts && responseText.includes('No products found'))) {
               failedSet = new Set(failedSet);
               failedSet.add(lastUserContent);
@@ -255,10 +266,11 @@ export function useChat() {
               suggestedAnswers = filterExcluded(asSuggested);
             }
           }
+          suggestedAnswers = suggestedAnswers ?? [];
 
           const filteredResponse = {
             ...response,
-            suggestedAnswers: suggestedAnswers ?? [],
+            suggestedAnswers,
           };
           return [...prev, createAssistantMessage(filteredResponse)];
         });
@@ -313,6 +325,7 @@ export function useChat() {
       sendMessage(t, {
         previousAssistantText: lastAssistant?.content,
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
+        previousRefinedQuery: lastAssistant?.refinedQuery,
       });
     },
     [loading, sendMessage, messages]
@@ -327,6 +340,7 @@ export function useChat() {
       sendMessage(t, {
         previousAssistantText: lastAssistant?.content,
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
+        previousRefinedQuery: lastAssistant?.refinedQuery,
       });
     },
     [loading, sendMessage, messages]
@@ -348,6 +362,7 @@ export function useChat() {
         imageBase64,
         previousAssistantText: lastAssistant?.content,
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
+        previousRefinedQuery: lastAssistant?.refinedQuery,
       });
     },
     [sendMessage, messages]
@@ -369,6 +384,7 @@ export function useChat() {
         imageBase64,
         previousAssistantText: prevAssistant?.content,
         previousSuggestedAnswers: prevAssistant?.suggestedAnswers,
+        previousRefinedQuery: prevAssistant?.refinedQuery,
       });
     }
   }, [messages, loading, sendMessage]);

@@ -40,6 +40,7 @@ class OrchestratorServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -64,6 +65,7 @@ class OrchestratorServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -82,6 +84,7 @@ class OrchestratorServiceTest {
                 "hi",
                 null,
                 "my-session-id",
+                null,
                 null,
                 null,
                 null,
@@ -104,6 +107,7 @@ class OrchestratorServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -121,6 +125,7 @@ class OrchestratorServiceTest {
                 "session-1",
                 null,
                 5,
+                null,
                 null,
                 null
         );

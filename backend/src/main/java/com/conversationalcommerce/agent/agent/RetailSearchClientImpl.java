@@ -79,7 +79,7 @@ public class RetailSearchClientImpl implements RetailSearchClient {
                 }
                 if (attributes.isEmpty()) attributes = null;
             }
-            results.add(new AgentResponse.ProductResult(id, title, desc, price, imageUri, gtin, productId, categories, brands, uri, availability, sizes, materials, attributes));
+            results.add(new AgentResponse.ProductResult(id, title, desc, price, imageUri, gtin, productId, categories, brands, uri, availability, sizes, materials, attributes, false));
         }
         return results;
     }

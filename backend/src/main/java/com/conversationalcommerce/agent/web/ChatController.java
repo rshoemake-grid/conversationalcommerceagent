@@ -31,7 +31,8 @@ public class ChatController {
                 request.imageBase64(),
                 request.maxSuggestedAnswers(),
                 request.previousAssistantText(),
-                request.previousSuggestedAnswers()
+                request.previousSuggestedAnswers(),
+                request.previousRefinedQuery()
         );
         return ResponseEntity.ok(ChatResponse.from(response));
     }

@@ -65,4 +65,22 @@ describe('ProductCard', () => {
     expect(link).toHaveAttribute('href', 'https://store.com/product/123');
     expect(tooltip).toHaveTextContent('Black');
   });
+
+  it('shows fetched indicator when detailsFetched is true', async () => {
+    const product: ProductDto = {
+      id: 'projects/p/products/enriched',
+      title: 'Enriched Product',
+      description: 'Looked up via Product.Get',
+      price: '$12.99',
+      imageUri: 'https://example.com/enriched.png',
+      detailsFetched: true,
+    };
+    render(<ProductCard product={product} index={0} />);
+    const hoverTarget = screen.getByRole('img', { name: 'Enriched Product' }).closest('.product-card__hover-target');
+    if (hoverTarget) await userEvent.hover(hoverTarget as HTMLElement);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Enriched Product');
+    expect(tooltip).toHaveTextContent('!');
+    expect(screen.getByTitle('Details were looked up from product catalog')).toBeInTheDocument();
+  });
 });

@@ -76,7 +76,7 @@ public record AgentResponse(
         }
     }
 
-    /** Product from search. id=resource name; productId=short id; gtin=UPC/GTIN. */
+    /** Product from search. id=resource name; productId=short id; gtin=UPC/GTIN. detailsFetched=true when filled via Product.Get. */
     public record ProductResult(
             String id,
             String title,
@@ -91,10 +91,11 @@ public record AgentResponse(
             String availability,
             List<String> sizes,
             List<String> materials,
-            Map<String, Object> attributes
+            Map<String, Object> attributes,
+            boolean detailsFetched
     ) {
         public static ProductResult of(String id, String title, String description, String price, String imageUri) {
-            return new ProductResult(id, title, description, price, imageUri, null, null, null, null, null, null, null, null, null);
+            return new ProductResult(id, title, description, price, imageUri, null, null, null, null, null, null, null, null, null, false);
         }
     }
 }

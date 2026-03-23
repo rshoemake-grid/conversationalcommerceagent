@@ -22,7 +22,8 @@ public class OrchestratorService {
 
     public AgentResponse process(ChatRequest.OrchestrationMode mode, String message, String conversationId, String sessionId,
                                  String imageBase64, Integer maxSuggestedAnswers, String previousAssistantText,
-                                 java.util.List<ChatRequest.SuggestedAnswerInput> previousSuggestedAnswers) {
+                                 java.util.List<ChatRequest.SuggestedAnswerInput> previousSuggestedAnswers,
+                                 String previousRefinedQuery) {
         var context = new java.util.HashMap<String, Object>(Map.of("visitorId", sessionId, "sessionId", sessionId));
         context.put("orchestrationMode", mode.name());
         if (imageBase64 != null && !imageBase64.isBlank()) {
@@ -38,6 +39,9 @@ public class OrchestratorService {
             context.put("previousSuggestedAnswers", previousSuggestedAnswers.stream()
                     .map(sa -> Map.<String, String>of("displayText", sa.displayText() != null ? sa.displayText() : "", "value", sa.value() != null ? sa.value() : ""))
                     .toList());
+        }
+        if (previousRefinedQuery != null && !previousRefinedQuery.isBlank()) {
+            context.put("previousRefinedQuery", previousRefinedQuery.trim());
         }
 
         return switch (mode) {

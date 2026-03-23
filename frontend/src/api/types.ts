@@ -18,6 +18,8 @@ export interface ProductDto {
   materials?: string[];
   /** Custom attributes (key -> value) */
   attributes?: Record<string, unknown>;
+  /** True when details were fetched via Product.Get to fill missing fields */
+  detailsFetched?: boolean;
 }
 
 export interface Message {
@@ -36,6 +38,8 @@ export interface Message {
   source?: 'agent' | 'app';
   /** GCP query classification, e.g. SIMPLE_PRODUCT_SEARCH, GENERAL_QUESTION */
   queryType?: string;
+  /** Refined query from last turn (for RETAIL_IRRELEVANT recovery when user says Any/no preference) */
+  refinedQuery?: string;
 }
 
 export interface ChatRequest {
@@ -51,6 +55,8 @@ export interface ChatRequest {
   previousAssistantText?: string;
   /** Previous assistant suggested answers (for no-products fallback) */
   previousSuggestedAnswers?: SuggestedAnswer[];
+  /** Previous refined query (for RETAIL_IRRELEVANT recovery when user says Any/no preference) */
+  previousRefinedQuery?: string;
 }
 
 export interface ChatResponse {

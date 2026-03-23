@@ -82,7 +82,7 @@ class BrandDisplayResolverTest {
             if (filter != null && filter.contains("NIKE")) {
                 return List.of(new AgentResponse.ProductResult(
                         null, "Test", null, null, null, null, null,
-                        null, List.of("Nike"), null, null, null, null, null));
+                        null, List.of("Nike"), null, null, null, null, null, false));
             }
             return List.of();
         }

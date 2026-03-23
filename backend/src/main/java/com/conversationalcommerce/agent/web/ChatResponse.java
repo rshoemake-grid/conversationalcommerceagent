@@ -35,7 +35,8 @@ public record ChatResponse(
                         p.availability(),
                         p.sizes(),
                         p.materials(),
-                        p.attributes()))
+                        p.attributes(),
+                        p.detailsFetched()))
                 .toList()
                 : List.of();
         return new ChatResponse(
@@ -72,7 +73,8 @@ public record ChatResponse(
             String availability,
             List<String> sizes,
             List<String> materials,
-            Map<String, Object> attributes
+            Map<String, Object> attributes,
+            boolean detailsFetched
     ) {}
 
     /** Display text for UI; value is sent to API when user selects */

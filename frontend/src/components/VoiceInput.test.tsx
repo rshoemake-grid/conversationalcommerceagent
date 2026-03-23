@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { VoiceInput } from './VoiceInput';
 
 const mockStart = vi.fn();
@@ -44,13 +44,33 @@ describe('VoiceInput', () => {
     expect(mockStart).toHaveBeenCalled();
   });
 
-  it('calls stop on mouse up after holding', () => {
+  it('calls stop on mouse up after holding (after delay)', async () => {
+    vi.useFakeTimers();
     render(<VoiceInput onResult={vi.fn()} />);
     const btn = screen.getByRole('button', { name: /Hold to speak/i });
     fireEvent.mouseDown(btn);
     fireEvent.mouseUp(btn);
     expect(mockStart).toHaveBeenCalled();
+    expect(mockStop).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
     expect(mockStop).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('cancels scheduled stop if user presses again within delay', async () => {
+    vi.useFakeTimers();
+    render(<VoiceInput onResult={vi.fn()} />);
+    const btn = screen.getByRole('button', { name: /Hold to speak/i });
+    fireEvent.mouseDown(btn);
+    fireEvent.mouseUp(btn);
+    fireEvent.mouseDown(btn);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(mockStop).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('disables button when disabled prop is true', () => {

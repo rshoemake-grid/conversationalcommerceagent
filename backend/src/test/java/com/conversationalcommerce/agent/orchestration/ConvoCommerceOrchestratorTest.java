@@ -3,6 +3,7 @@ package com.conversationalcommerce.agent.orchestration;
 import com.conversationalcommerce.agent.agent.AgentResponse;
 import com.conversationalcommerce.agent.agent.ConversationalCommerceAdapter;
 import com.conversationalcommerce.agent.agent.ConversationalCommerceClient;
+import com.conversationalcommerce.agent.agent.ProductEnrichmentService;
 import com.conversationalcommerce.agent.agent.RetailSearchClient;
 import com.conversationalcommerce.agent.config.ConversationalCommerceConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,7 @@ class ConvoCommerceOrchestratorTest {
 
         stubClient = new StubConversationalCommerceClient();
         stubSearchClient = new StubRetailSearchClient();
-        var adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, config, Optional.empty());
+        var adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
         orchestrator = new ConvoCommerceOrchestrator(adapter);
     }
 

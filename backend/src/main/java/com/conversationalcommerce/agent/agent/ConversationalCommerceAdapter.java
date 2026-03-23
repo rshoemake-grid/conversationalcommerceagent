@@ -25,16 +25,19 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
 
     private final ConversationalCommerceClient client;
     private final RetailSearchClient searchClient;
+    private final ProductEnrichmentService enrichmentService;
     private final ConversationalCommerceConfig config;
     private final Optional<ClarifyingQuestionGenerator> clarifyingGenerator;
 
     public ConversationalCommerceAdapter(
             ConversationalCommerceClient client,
             RetailSearchClient searchClient,
+            ProductEnrichmentService enrichmentService,
             ConversationalCommerceConfig config,
             Optional<ClarifyingQuestionGenerator> clarifyingGenerator) {
         this.client = client;
         this.searchClient = searchClient;
+        this.enrichmentService = enrichmentService;
         this.config = config;
         this.clarifyingGenerator = clarifyingGenerator != null ? clarifyingGenerator : Optional.empty();
     }
@@ -60,28 +63,53 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         var result = client.search(request);
 
         List<AgentResponse.ProductResult> products = List.of();
-        if (result.refinedQuery() != null && !result.refinedQuery().isEmpty()) {
+        String searchQuery = result.refinedQuery();
+        boolean usedNoPreferenceRecovery = false;
+
+        // When RETAIL_IRRELEVANT and user said "Any"/"no preference", use previous refined query to search
+        if ("RETAIL_IRRELEVANT".equals(result.queryType()) && isNoPreference(query)
+                && (searchQuery == null || searchQuery.isEmpty())) {
+            String prevRefined = (String) context.get("previousRefinedQuery");
+            if (prevRefined != null && !prevRefined.isBlank()) {
+                searchQuery = prevRefined.trim();
+                usedNoPreferenceRecovery = true;
+                log.debug("RETAIL_IRRELEVANT + no-preference: using previousRefinedQuery \"{}\"", searchQuery);
+            }
+        }
+
+        if (searchQuery != null && !searchQuery.isEmpty()) {
             try {
                 String filter = buildBrandFilterWhenApplicable(query, result.suggestedAnswers(), context);
                 products = searchClient.search(
                         config.placement(),
                         config.branch(),
-                        result.refinedQuery(),
+                        searchQuery,
                         visitorId,
                         filter
                 );
+                products = enrichmentService.enrich(products);
             } catch (Exception e) {
                 log.warn("Product search failed (may use gRPC; try transport=rest for full REST): {}", e.getMessage());
             }
         }
 
         String text = result.text() != null ? result.text() : "";
+        if (usedNoPreferenceRecovery) {
+            if (!products.isEmpty()) {
+                int n = products.size();
+                text = n == 1
+                        ? "I found 1 product matching your request."
+                        : "I found " + n + " products matching your request.";
+            } else {
+                text = "No products found.";
+            }
+        }
         List<AgentResponse.ProductResult> productsToReturn = products;
         int productCountThreshold = 8;
         if (products.isEmpty()) {
             log.info("Products empty; userQueryType={}", result.queryType() != null ? result.queryType() : "(none)");
         }
-        String refinedQuery = result.refinedQuery();
+        String refinedQuery = (usedNoPreferenceRecovery && searchQuery != null) ? searchQuery : result.refinedQuery();
         boolean isSearchingFallback = text.startsWith("Searching for:");
         boolean useConvoCommerceOnly = "convo_commerce".equals(context.get("orchestrationMode"));
         boolean hasRefinedQuery = refinedQuery != null && !refinedQuery.isEmpty();
@@ -118,7 +146,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         }
         if (useConvoCommerceOnly) {
             // Approach A: Pass through agent response as-is; no app overrides
-            if (!products.isEmpty() && products.size() > productCountThreshold) {
+            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery) {
                 productsToReturn = List.of();
             } else if (!products.isEmpty() && isSearchingFallback) {
                 // Replace "Searching for: X" placeholder with a proper count when we have products
@@ -137,7 +165,7 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
         }
         if (!useConvoCommerceOnly) {
             // Approach B: Use our clarifying logic when many products
-            if (!products.isEmpty() && products.size() > productCountThreshold) {
+            if (!products.isEmpty() && products.size() > productCountThreshold && !usedNoPreferenceRecovery) {
                 String categoryHint = refinedQuery != null ? refinedQuery : "products";
                 int productCount = products.size();
                 text = clarifyingGenerator
@@ -161,10 +189,13 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             }
         }
 
+        if (suggestedAnswers.isEmpty() && text != null && text.contains("?")) {
+            suggestedAnswers = List.of(new ConversationalCommerceClient.SuggestedAnswer("Any", "ANY"));
+        }
         return AgentResponse.builder()
                 .text(text)
                 .conversationId(result.conversationId())
-                .refinedQuery(result.refinedQuery())
+                .refinedQuery(refinedQuery)
                 .products(productsToReturn)
                 .queryType(result.queryType())
                 .source(responseSource)
@@ -229,8 +260,21 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
     }
 
     private static final java.util.Set<String> NON_BRAND_VALUES = java.util.Set.of(
-            "FROZEN", "REFRIGERATED", "AMBIENT", "DRY_STORAGE", "COLD", "F", "C"
+            "FROZEN", "REFRIGERATED", "AMBIENT", "DRY_STORAGE", "COLD", "F", "C", "ANY"
     );
+
+    private static final java.util.Set<String> NO_PREFERENCE_PHRASES = java.util.Set.of(
+            "ANY", "NO", "NONE", "NOPREFERENCE", "DON'T CARE", "DONT CARE", "DOESN'T MATTER",
+            "DOESNT MATTER", "WHATEVER", "I DON'T CARE", "IDC"
+    );
+
+    private static boolean isNoPreference(String input) {
+        if (input == null || input.isBlank()) return false;
+        String n = input.trim().toUpperCase().replaceAll("\\s+", " ");
+        if (NO_PREFERENCE_PHRASES.contains(n)) return true;
+        if (n.replace("'", "").replace(" ", "").equals("NOPREFERENCE")) return true;
+        return n.equals("NO PREFERENCE") || n.startsWith("NO PREFERENCE");
+    }
 
     /** Add brand filter only when user selected a suggested answer that looks like a brand (not storage type, not a search term like "shrimp"). */
     private String buildBrandFilterWhenApplicable(String canonicalValue, List<ConversationalCommerceClient.SuggestedAnswer> suggestedAnswers, Map<String, Object> context) {

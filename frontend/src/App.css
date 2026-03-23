@@ -456,9 +456,24 @@
 .product-card__detail-header {
   font-weight: 700;
   font-size: 0.9375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border-color);
+}
+.product-card__detail-fetched {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1em;
+  height: 1.1em;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 50%;
 }
 
 .product-card__detail-body {

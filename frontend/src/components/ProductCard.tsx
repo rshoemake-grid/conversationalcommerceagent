@@ -68,7 +68,14 @@ function ProductCardComponent({ product: p, index }: ProductCardProps) {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
-            <div className="product-card__detail-header">{p.title || 'Product'}</div>
+            <div className="product-card__detail-header">
+              {p.title || 'Product'}
+              {p.detailsFetched && (
+                <span className="product-card__detail-fetched" title="Details were looked up from product catalog">
+                  !
+                </span>
+              )}
+            </div>
             <dl className="product-card__detail-body">
           {p.description != null && (
             <>
@@ -92,12 +99,6 @@ function ProductCardComponent({ product: p, index }: ProductCardProps) {
             <>
               <dt>Product ID</dt>
               <dd>{p.productId}</dd>
-            </>
-          )}
-          {p.id != null && (
-            <>
-              <dt>Resource</dt>
-              <dd className="product-card__detail--mono">{p.id}</dd>
             </>
           )}
           {p.brands?.length ? (

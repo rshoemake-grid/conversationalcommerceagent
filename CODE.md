@@ -210,6 +210,8 @@ Returns available Gemini models. Requires `GOOGLE_API_KEY`.
 | displayText | string | Shown in UI |
 | value | string | Sent to API when selected |
 
+When the agent asks a follow-up question without suggested answers (e.g. "Do you have a preference for long-grain, medium-grain, or short-grain rice?"), the app adds an "Any" option so the user can indicate no preference without typing.
+
 ---
 
 ## Key Flows
@@ -224,11 +226,13 @@ Returns available Gemini models. Requires `GOOGLE_API_KEY`.
 6. If `refinedQuery` present, `RetailSearchClient` runs product search.
 7. Response built as `AgentResponse` → `ChatResponse`.
 8. Frontend appends assistant message, filters failed suggested answers, slices by `maxSuggestedAnswers`.
+9. **RETAIL_IRRELEVANT recovery**: When the user says "Any", "no", or "no preference" and the API returns RETAIL_IRRELEVANT, the backend uses `previousRefinedQuery` from context to run a product search and returns results instead of "I didn't understand your response."
 
 ### Suggested Answers
 
 - GCP returns suggested answers in response JSON.
 - Backend parses and maps brand codes to display text (e.g. NIKE → Nike).
+- **"Any" for follow-up questions**: When the agent asks a follow-up question (text contains "?") but the API provides no suggested answers, we add an "Any" option so the user can indicate no preference with one click. Selecting "Any" triggers the RETAIL_IRRELEVANT recovery flow (search using previous refined query).
 - Frontend tracks `failedSuggestedValuesRef`: suggestions that returned same assistant text (no products) are hidden.
 - `maxSuggestedAnswers` caps displayed count; applies in real time.
 - "Get more suggestions" resends last user message and clears failed set.
