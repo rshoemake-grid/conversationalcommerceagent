@@ -2,6 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { sendChatMessage } from '../api/chatApi';
 import { useVoiceOutput } from './useVoiceOutput';
 import type { Message, OrchestrationMode, ChatResponse, SuggestedAnswer } from '../api/types';
+import {
+  isSuggestedAnswerExcluded,
+  suggestedAnswerDisplayLabel,
+  suggestedAnswerSubmitValue,
+} from '../utils/suggestedAnswerDisplay';
 
 function createUserMessage(text: string, imageUri?: string, imageBase64?: string): Message {
   return {
@@ -47,15 +52,19 @@ function createAssistantMessage(response: { text?: string; products?: Message['p
   if (suggestedAnswers === undefined && response.rawResponse) {
     const extracted = extractSuggestedAnswersFromRaw(response.rawResponse);
     if (extracted.length > 0) {
-      suggestedAnswers = extracted.map((v) => ({
-        displayText: looksLikeBrandCode(v) ? toTitleCase(v) : v,
-        value: v,
-      }));
+      suggestedAnswers = extracted.map((v) => {
+        const sa: SuggestedAnswer = {
+          displayText: looksLikeBrandCode(v) ? toTitleCase(v) : v,
+          value: v,
+        };
+        return { ...sa, displayText: suggestedAnswerDisplayLabel(sa) };
+      });
     }
   }
   if ((!suggestedAnswers || suggestedAnswers.length === 0) && text && text.includes('?')) {
     suggestedAnswers = [{ displayText: 'Any', value: 'ANY' }];
   }
+  suggestedAnswers = normalizeSuggestedAnswerList(suggestedAnswers);
   return {
     id: `a-${crypto.randomUUID()}`,
     role: 'assistant',
@@ -98,6 +107,14 @@ function toTitleCase(s: string): string {
   return s[0].toUpperCase() + s.slice(1).toLowerCase();
 }
 
+function normalizeSuggestedAnswerList(list: SuggestedAnswer[] | undefined): SuggestedAnswer[] | undefined {
+  if (!list?.length) return list;
+  return list.map((sa) => ({
+    ...sa,
+    displayText: suggestedAnswerDisplayLabel(sa),
+  }));
+}
+
 /** Last non-empty refinedQuery from assistant messages. Used for no-preference recovery when INTENT_REFINEMENT has no refinedQuery. */
 function getLastNonEmptyRefinedQuery(messages: Message[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -107,6 +124,19 @@ function getLastNonEmptyRefinedQuery(messages: Message[]): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Text sent as previousAssistantText for storage / no-products recovery.
+ * When the assistant showed products, `content` is often only "Showing N of M products" and the
+ * real follow-up (e.g. "What type of stock do you prefer?") lives in `clarifyingQuestion`. Sending
+ * only `content` makes the backend re-ask "Showing 20 of 4712" after a failed pick.
+ */
+function previousAssistantTextForContext(m: Message | undefined): string | undefined {
+  if (!m) return undefined;
+  const cq = m.clarifyingQuestion?.trim();
+  if (cq) return cq;
+  return m.content?.trim();
 }
 function extractValueFromSuggestedAnswer(item: unknown): string | null {
   if (typeof item === 'string' && item.trim()) return item.trim();
@@ -292,20 +322,23 @@ export function useChat() {
           }
 
           const filterExcluded = (list: SuggestedAnswer[]) =>
-            list.filter((sa) => !failedSet.has(sa.value));
+            list.filter((sa) => !isSuggestedAnswerExcluded(sa, failedSet));
 
           let suggestedAnswers = response.suggestedAnswers?.length ? filterExcluded(response.suggestedAnswers) : undefined;
           if (!suggestedAnswers?.length && response.rawResponse) {
             const extracted = extractSuggestedAnswersFromRaw(response.rawResponse);
             if (extracted.length > 0) {
-              const asSuggested = extracted.map((v) => ({
-                displayText: looksLikeBrandCode(v) ? toTitleCase(v) : v,
-                value: v,
-              }));
+              const asSuggested = extracted.map((v) => {
+                const sa: SuggestedAnswer = {
+                  displayText: looksLikeBrandCode(v) ? toTitleCase(v) : v,
+                  value: v,
+                };
+                return { ...sa, displayText: suggestedAnswerDisplayLabel(sa) };
+              });
               suggestedAnswers = filterExcluded(asSuggested);
             }
           }
-          suggestedAnswers = suggestedAnswers ?? [];
+          suggestedAnswers = normalizeSuggestedAnswerList(suggestedAnswers ?? []) ?? [];
 
           const filteredResponse = {
             ...response,
@@ -360,7 +393,7 @@ export function useChat() {
     ]);
     sendMessage(hasText ? text : '', {
       imageBase64: rawBase64,
-      previousAssistantText: lastAssistant?.content,
+      previousAssistantText: previousAssistantTextForContext(lastAssistant),
       previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
       previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
     });
@@ -375,7 +408,7 @@ export function useChat() {
       const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && !m.isError);
       setMessages((prev) => [...prev, createUserMessage(t)]);
       sendMessage(t, {
-        previousAssistantText: lastAssistant?.content,
+        previousAssistantText: previousAssistantTextForContext(lastAssistant),
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
         previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
       });
@@ -384,13 +417,14 @@ export function useChat() {
   );
 
   const handleSuggestedAnswer = useCallback(
-    (text: string) => {
-      const t = text?.trim();
-      if (!t || loading) return;
+    (answer: SuggestedAnswer) => {
+      const submit = suggestedAnswerSubmitValue(answer);
+      const label = suggestedAnswerDisplayLabel(answer);
+      if (!submit || loading) return;
       const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && !m.isError);
-      setMessages((prev) => [...prev, createUserMessage(t)]);
-      sendMessage(t, {
-        previousAssistantText: lastAssistant?.content,
+      setMessages((prev) => [...prev, createUserMessage(label)]);
+      sendMessage(submit, {
+        previousAssistantText: previousAssistantTextForContext(lastAssistant),
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
         previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
       });
@@ -412,7 +446,7 @@ export function useChat() {
       sendMessage(messageText, {
         removeErrorId: errorId,
         imageBase64,
-        previousAssistantText: lastAssistant?.content,
+        previousAssistantText: previousAssistantTextForContext(lastAssistant),
         previousSuggestedAnswers: lastAssistant?.suggestedAnswers,
         previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? lastAssistant?.refinedQuery,
       });
@@ -434,7 +468,7 @@ export function useChat() {
       setMessages((prev) => [...prev, createUserMessage(text || '[Image]', lastUser.imageUri ?? undefined, imageBase64)]);
       sendMessage(text, {
         imageBase64,
-        previousAssistantText: prevAssistant?.content,
+        previousAssistantText: previousAssistantTextForContext(prevAssistant),
         previousSuggestedAnswers: prevAssistant?.suggestedAnswers,
         previousRefinedQuery: getLastNonEmptyRefinedQuery(messages) ?? prevAssistant?.refinedQuery,
       });

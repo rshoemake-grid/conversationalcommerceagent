@@ -352,6 +352,11 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             suggestedAnswers = List.of(new ConversationalCommerceClient.SuggestedAnswer("Any", "ANY"));
         }
         suggestedAnswers = applyStorageTypeDisplayMapping(suggestedAnswers);
+        // GCP may echo the same storage chips (S/R/D) in the conversational response even after the user
+        // picked one; we already applied that filter for product search — drop redundant storage suggestions.
+        if (usedStorageTypeRecovery && productsToReturn != null && !productsToReturn.isEmpty()) {
+            suggestedAnswers = removeStorageTypeSuggestions(suggestedAnswers);
+        }
         // Ensure no-preference/storage-type recovery always returns products when we have them
         if ((usedNoPreferenceRecovery || usedStorageTypeRecovery) && !products.isEmpty()) {
             productsToReturn = products;
@@ -502,6 +507,18 @@ public class ConversationalCommerceAdapter implements ConversationalAgent {
             "S", "Ambient", "R", "Refrigerated", "D", "Dry storage",
             "F", "Frozen", "C", "Refrigerated"
     );
+
+    /** Remove suggestions whose value is a stock/storage code — redundant after storage-type recovery returned products. */
+    private static List<ConversationalCommerceClient.SuggestedAnswer> removeStorageTypeSuggestions(
+            List<ConversationalCommerceClient.SuggestedAnswer> list) {
+        if (list == null || list.isEmpty()) return list;
+        return list.stream().filter(sa -> !isStorageSuggestionValue(sa.value())).toList();
+    }
+
+    private static boolean isStorageSuggestionValue(String value) {
+        if (value == null || value.isBlank()) return false;
+        return STORAGE_TYPE_VALUES.contains(value.trim().toUpperCase());
+    }
 
     /** Apply storageType display mapping so S/R/D show as Ambient/Refrigerated/Dry storage. */
     private List<ConversationalCommerceClient.SuggestedAnswer> applyStorageTypeDisplayMapping(List<ConversationalCommerceClient.SuggestedAnswer> list) {

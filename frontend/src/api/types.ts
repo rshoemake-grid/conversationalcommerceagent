@@ -61,7 +61,7 @@ export interface ChatRequest {
   imageBase64?: string;
   /** Max suggested answers to request (null/omit = no limit). Display is also sliced client-side for real-time control. */
   maxSuggestedAnswers?: number;
-  /** Previous assistant text (for SIMPLE_PRODUCT_SEARCH no-products fallback when user retries a suggested answer) */
+  /** Previous assistant text for no-products / storage fallback (prefer the clarifying question, not count-only lines) */
   previousAssistantText?: string;
   /** Previous assistant suggested answers (for no-products fallback) */
   previousSuggestedAnswers?: SuggestedAnswer[];

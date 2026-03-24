@@ -228,8 +228,9 @@ describe('MessageList', () => {
     expect(img).toHaveAttribute('src', 'http://example.com/img.png')
   })
 
-  it('renders suggested answers when present and calls onSuggestedAnswer with displayText when clicked', async () => {
+  it('renders suggested answers when present and calls onSuggestedAnswer with the answer when clicked', async () => {
     const onSuggestedAnswer = vi.fn()
+    const running = { displayText: 'Running shoes', value: 'Running shoes' }
     render(
       <MessageList
         messages={[
@@ -238,7 +239,7 @@ describe('MessageList', () => {
             role: 'assistant',
             content: 'What type of shoes?',
             suggestedAnswers: [
-              { displayText: 'Running shoes', value: 'Running shoes' },
+              running,
               { displayText: 'Casual shoes', value: 'Casual shoes' },
               { displayText: 'Boots', value: 'Boots' },
             ],
@@ -251,7 +252,30 @@ describe('MessageList', () => {
     expect(screen.getByText('Casual shoes')).toBeInTheDocument()
     expect(screen.getByText('Boots')).toBeInTheDocument()
     await userEvent.click(screen.getByText('Running shoes'))
-    expect(onSuggestedAnswer).toHaveBeenCalledWith('Running shoes')
+    expect(onSuggestedAnswer).toHaveBeenCalledWith(running)
+  })
+
+  it('renders storage codes as readable labels and places suggestions after the product grid when both exist', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Showing 2 of 2 products',
+            products: [{ id: 'p1', title: 'Milk', description: '', price: '$1' }],
+            suggestedAnswers: [
+              { displayText: 'S', value: 'S' },
+              { displayText: 'R', value: 'R' },
+            ],
+          },
+        ]}
+        onSuggestedAnswer={() => {}}
+      />
+    )
+    const productsHeading = screen.getByText('Products')
+    const ambient = screen.getByRole('button', { name: 'Ambient' })
+    expect(productsHeading.compareDocumentPosition(ambient) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('slices suggested answers when maxSuggestedAnswers is set', () => {

@@ -243,7 +243,7 @@ describe('useChat', () => {
     expect(result.current.messages).toHaveLength(2)
     expect(result.current.messages[1].suggestedAnswers).toHaveLength(3)
 
-    act(() => result.current.handleSuggestedAnswer('NIKE'))
+    act(() => result.current.handleSuggestedAnswer({ displayText: 'Nike', value: 'NIKE' }))
     await act(async () => {})
 
     expect(result.current.messages).toHaveLength(4)
@@ -252,7 +252,7 @@ describe('useChat', () => {
     expect(secondAssistant.suggestedAnswers).toHaveLength(2)
     expect(secondAssistant.suggestedAnswers?.map((s) => s.value)).toEqual(['ADIDAS', 'PUMA'])
 
-    act(() => result.current.handleSuggestedAnswer('ADIDAS'))
+    act(() => result.current.handleSuggestedAnswer({ displayText: 'Adidas', value: 'ADIDAS' }))
     await act(async () => {})
 
     expect(result.current.messages).toHaveLength(6)
@@ -290,7 +290,7 @@ describe('useChat', () => {
     expect(result.current.messages).toHaveLength(2)
     expect(result.current.messages[1].suggestedAnswers).toHaveLength(2)
 
-    act(() => result.current.handleSuggestedAnswer('BHB/NPM'))
+    act(() => result.current.handleSuggestedAnswer({ displayText: 'BHB/NPM', value: 'BHB/NPM' }))
     await act(async () => {})
 
     expect(result.current.messages).toHaveLength(4)
@@ -328,6 +328,44 @@ describe('useChat', () => {
     expect(assistantMsg.products).toHaveLength(5)
   })
 
+  it('sends clarifyingQuestion as previousAssistantText when assistant content is count-only', async () => {
+    const sendSpy = vi.mocked(chatApi.sendChatMessage)
+    sendSpy
+      .mockResolvedValueOnce({
+        text: 'I found 20 products matching your request.',
+        conversationId: 'c1',
+        refinedQuery: 'rice',
+        products: Array(3)
+          .fill(null)
+          .map((_, i) => ({ id: `p${i}`, title: `Rice ${i}`, description: '', price: '$1' })),
+        clarifyingQuestion: 'What type of stock do you prefer?',
+        productTotalSize: 4712,
+        suggestedAnswers: [
+          { displayText: 'Ambient', value: 'S' },
+          { displayText: 'Refrigerated', value: 'R' },
+          { displayText: 'Dry storage', value: 'D' },
+        ],
+      })
+      .mockResolvedValueOnce({ text: 'ok', conversationId: 'c1' })
+
+    const { result } = renderHook(() => useChat())
+    act(() => result.current.setInput('rice'))
+    await act(async () => result.current.handleSend())
+
+    const assistant = result.current.messages[1]
+    expect(assistant.content).toMatch(/Showing 3 of 4712 products/)
+    expect(assistant.clarifyingQuestion).toBe('What type of stock do you prefer?')
+
+    act(() =>
+      result.current.handleSuggestedAnswer({ displayText: 'Dry storage', value: 'D' })
+    )
+    await act(async () => {})
+
+    expect(sendSpy).toHaveBeenCalledTimes(2)
+    const second = sendSpy.mock.calls[1][0]
+    expect(second.previousAssistantText).toBe('What type of stock do you prefer?')
+  })
+
   it('passes last non-empty refinedQuery for no-preference recovery when last assistant has none', async () => {
     const sendSpy = vi.mocked(chatApi.sendChatMessage)
     sendSpy
@@ -358,12 +396,12 @@ describe('useChat', () => {
     act(() => result.current.setInput('I want rice'))
     await act(async () => result.current.handleSend())
 
-    act(() => result.current.handleSuggestedAnswer('D'))
+    act(() => result.current.handleSuggestedAnswer({ displayText: 'Dry storage', value: 'D' }))
     await act(async () => {
       await new Promise((r) => setTimeout(r, 50))
     })
 
-    act(() => result.current.handleSuggestedAnswer('Any'))
+    act(() => result.current.handleSuggestedAnswer({ displayText: 'Any', value: 'ANY' }))
     await act(async () => {
       await new Promise((r) => setTimeout(r, 50))
     })

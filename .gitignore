@@ -13,3 +13,7 @@ target/
 
 # IDE
 .idea/
+
+# Python (scripts/)
+__pycache__/
+*.py[cod]

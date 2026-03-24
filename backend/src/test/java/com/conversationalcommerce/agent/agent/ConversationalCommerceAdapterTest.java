@@ -511,7 +511,13 @@ class ConversationalCommerceAdapterTest {
                 "SIMPLE_PRODUCT_SEARCH",
                 "agent",
                 null,
-                List.of()
+                // GCP often echoes the same storage chips in the conversational payload even after selection;
+                // adapter strips these when product search succeeded via storage recovery.
+                List.of(
+                        new ConversationalCommerceClient.SuggestedAnswer("S", "S"),
+                        new ConversationalCommerceClient.SuggestedAnswer("R", "R"),
+                        new ConversationalCommerceClient.SuggestedAnswer("D", "D")
+                )
         ));
         stubSearchClient.setProducts(List.of(
                 AgentResponse.ProductResult.of("p1", "Long Grain Rice", "Dry rice", "$5", null)
@@ -528,8 +534,40 @@ class ConversationalCommerceAdapterTest {
 
         assertThat(response.products()).hasSize(1);
         assertThat(response.products().get(0).title()).isEqualTo("Long Grain Rice");
+        assertThat(response.suggestedAnswers()).isEmpty();
         assertThat(stubSearchClient.lastQuery).isEqualTo("rice");
         assertThat(stubSearchClient.lastFilter).contains("attributes.").contains("D");
+    }
+
+    @Test
+    void sendMessage_storageTypeRecoveryWithProducts_keepsNonStorageSuggestionsFromApi() {
+        config.setAttributeValueExpansion(Map.of("storageType", Map.of("R", "REFRIGERATED")));
+        adapter = new ConversationalCommerceAdapter(stubClient, stubSearchClient, new ProductEnrichmentService(Optional.empty()), config, Optional.empty());
+
+        stubClient.setNextResult(new ConversationalCommerceClient.ConversationalCommerceResult(
+                "Pick a brand?",
+                "conv-1",
+                "REFRIGERATED",
+                "SIMPLE_PRODUCT_SEARCH",
+                "agent",
+                null,
+                List.of(
+                        new ConversationalCommerceClient.SuggestedAnswer("R", "R"),
+                        new ConversationalCommerceClient.SuggestedAnswer("NIKE", "NIKE")
+                )
+        ));
+        stubSearchClient.setProducts(List.of(AgentResponse.ProductResult.of("p1", "Milk", "Cold", "$3", null)));
+
+        var context = Map.<String, Object>of(
+                "previousRefinedQuery", "milk",
+                "previousSuggestedAnswers", List.of(Map.of("displayText", "R", "value", "R"))
+        );
+
+        AgentResponse response = adapter.sendMessage("", "R", context);
+
+        assertThat(response.products()).hasSize(1);
+        assertThat(response.suggestedAnswers()).hasSize(1);
+        assertThat(response.suggestedAnswers().get(0).value()).isEqualTo("NIKE");
     }
 
     @Test

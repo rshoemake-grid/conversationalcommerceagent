@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef } from 'react';
-import type { Message } from '../api/types';
+import type { Message, SuggestedAnswer } from '../api/types';
 import { ProductCard } from './ProductCard';
+import { suggestedAnswerDisplayLabel } from '../utils/suggestedAnswerDisplay';
 
 interface MessageListProps {
   messages: Message[];
@@ -8,7 +9,7 @@ interface MessageListProps {
   maxSuggestedAnswers?: number;
   onRetry?: (messageText: string, errorId: string, imageBase64?: string) => void;
   onDismissError?: (messageId: string) => void;
-  onSuggestedAnswer?: (text: string) => void;
+  onSuggestedAnswer?: (answer: SuggestedAnswer) => void;
   onGetMoreSuggestions?: () => void;
   onLoadMore?: (msg: Message) => void;
 }
@@ -78,7 +79,9 @@ function MessageListComponent({
               <img src={msg.imageUri} alt="Attached" className="message__image" />
             </div>
           )}
-          <div className="message__content">{msg.content}</div>
+          {!(msg.products && msg.products.length > 0 && /^Showing \d+ (of (at least )?\d+ )?products?$/.test(msg.content?.trim() ?? '')) && (
+            <div className="message__content">{msg.content}</div>
+          )}
           {msg.isError && (onRetry || onDismissError) && (
             <div className="message__actions">
               {onRetry && (
@@ -105,39 +108,6 @@ function MessageListComponent({
                   Dismiss
                 </button>
               )}
-            </div>
-          )}
-          {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && !msg.clarifyingQuestion && (
-            <div className="message__suggested-answers">
-              {(maxSuggestedAnswers != null
-                ? msg.suggestedAnswers.slice(0, maxSuggestedAnswers)
-                : msg.suggestedAnswers
-              ).map((answer, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="message__suggested-answer"
-                  onClick={() => onSuggestedAnswer(answer.displayText)}
-                >
-                  {answer.displayText}
-                </button>
-              ))}
-              {onGetMoreSuggestions &&
-                msg.role === 'assistant' &&
-                !msg.isError &&
-                msg.suggestedAnswers &&
-                msg.suggestedAnswers.length > 0 &&
-                msg.id === [...messages].reverse().find((m) => m.role === 'assistant' && m.suggestedAnswers?.length)?.id && (
-                  <button
-                    type="button"
-                    className="message__get-more-suggestions"
-                    onClick={onGetMoreSuggestions}
-                    disabled={loading}
-                    aria-label="Get more suggested answers"
-                  >
-                    Get more suggestions
-                  </button>
-                )}
             </div>
           )}
           {msg.products && msg.products.length > 0 && (
@@ -170,7 +140,7 @@ function MessageListComponent({
                     {msg.clarifyingQuestion}
                   </p>
                   {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && (
-                    <div className="message__suggested-answers">
+                    <div className="message__suggested-answers message__suggested-answers--after-clarifying">
                       {(maxSuggestedAnswers != null
                         ? msg.suggestedAnswers.slice(0, maxSuggestedAnswers)
                         : msg.suggestedAnswers
@@ -179,9 +149,9 @@ function MessageListComponent({
                           key={i}
                           type="button"
                           className="message__suggested-answer"
-                          onClick={() => onSuggestedAnswer(answer.displayText)}
+                          onClick={() => onSuggestedAnswer(answer)}
                         >
-                          {answer.displayText}
+                          {suggestedAnswerDisplayLabel(answer)}
                         </button>
                       ))}
                       {onGetMoreSuggestions &&
@@ -204,6 +174,39 @@ function MessageListComponent({
                   )}
                 </div>
               )}
+            </div>
+          )}
+          {msg.suggestedAnswers && msg.suggestedAnswers.length > 0 && onSuggestedAnswer && !msg.clarifyingQuestion && (
+            <div className="message__suggested-answers">
+              {(maxSuggestedAnswers != null
+                ? msg.suggestedAnswers.slice(0, maxSuggestedAnswers)
+                : msg.suggestedAnswers
+              ).map((answer, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="message__suggested-answer"
+                  onClick={() => onSuggestedAnswer(answer)}
+                >
+                  {suggestedAnswerDisplayLabel(answer)}
+                </button>
+              ))}
+              {onGetMoreSuggestions &&
+                msg.role === 'assistant' &&
+                !msg.isError &&
+                msg.suggestedAnswers &&
+                msg.suggestedAnswers.length > 0 &&
+                msg.id === [...messages].reverse().find((m) => m.role === 'assistant' && m.suggestedAnswers?.length)?.id && (
+                  <button
+                    type="button"
+                    className="message__get-more-suggestions"
+                    onClick={onGetMoreSuggestions}
+                    disabled={loading}
+                    aria-label="Get more suggested answers"
+                  >
+                    Get more suggestions
+                  </button>
+                )}
             </div>
           )}
         </div>
