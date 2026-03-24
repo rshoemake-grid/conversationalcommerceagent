@@ -90,7 +90,7 @@ describe('MessageList', () => {
     expect(screen.getByText('Hi! How can I help?')).toBeInTheDocument()
   })
 
-  it('labels app fallbacks as Application', () => {
+  it('labels assistant messages as Assistant even when source is app', () => {
     render(
       <MessageList
         messages={[
@@ -98,8 +98,53 @@ describe('MessageList', () => {
         ]}
       />
     )
-    expect(screen.getByText('Application')).toBeInTheDocument()
-    expect(screen.queryByText('Assistant')).not.toBeInTheDocument()
+    expect(screen.getByText('Assistant')).toBeInTheDocument()
+    expect(screen.queryByText('Application')).not.toBeInTheDocument()
+  })
+
+  it('orders Products, then Application + count, then Assistant above the grid', () => {
+    render(
+      <MessageList
+        messages={[
+          {
+            id: '1',
+            role: 'assistant',
+            content: 'Showing 2 of 100 products',
+            source: 'app',
+            queryType: 'SIMPLE_PRODUCT_SEARCH',
+            products: [
+              { id: 'p1', title: 'Item 1', description: 'Desc', price: '$10', imageUri: 'http://img' },
+              { id: 'p2', title: 'Item 2', description: 'Desc', price: '$12', imageUri: 'http://img' },
+            ],
+            productTotalSize: 100,
+          },
+        ]}
+      />
+    )
+    const messageEl = screen.getByText('Item 1').closest('.message')
+    expect(messageEl?.querySelector(':scope > .message__role')).toBeNull()
+
+    const productsSection = screen.getByText('Products').closest('.message__products')
+    expect(productsSection).not.toBeNull()
+    const assistantRow = productsSection!.querySelector('.message__role--product-grid')
+    expect(assistantRow).not.toBeNull()
+    expect(assistantRow).toHaveTextContent('Assistant')
+    expect(assistantRow).toHaveTextContent('SIMPLE_PRODUCT_SEARCH')
+
+    const appLabel = productsSection!.querySelector('.message__product-count-source')
+    expect(appLabel).not.toBeNull()
+    expect(appLabel).toHaveTextContent('Application')
+    expect(screen.getByText(/Showing 2 of 100 products/)).toBeInTheDocument()
+
+    const children = Array.from(productsSection!.children)
+    const h4Idx = children.findIndex((el) => el.tagName === 'H4')
+    const countIdx = children.findIndex((el) => el.classList.contains('message__product-count-section'))
+    const assistantIdx = children.findIndex((el) => el.classList.contains('message__role--product-grid'))
+    const gridIdx = children.findIndex((el) => el.classList.contains('product-grid'))
+    expect(h4Idx).toBe(0)
+    expect(countIdx).toBeGreaterThan(h4Idx)
+    expect(assistantIdx).toBeGreaterThan(countIdx)
+    expect(gridIdx).toBeGreaterThan(assistantIdx)
   })
 
   it('labels agent responses as Assistant (agent)', () => {

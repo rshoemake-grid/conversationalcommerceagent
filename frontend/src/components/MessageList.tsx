@@ -49,20 +49,26 @@ function MessageListComponent({
           </div>
         </div>
       )}
-      {messages.map((msg, idx) => (
+      {messages.map((msg, idx) => {
+        const hasProducts = Boolean(msg.products && msg.products.length > 0);
+        const showTopRoleRow =
+          msg.role === 'user' ||
+          msg.isError ||
+          (msg.role === 'assistant' && !hasProducts);
+
+        return (
         <div
           key={msg.id}
           className={`message message--${msg.role}${msg.isError ? ' message--error' : ''}`}
           role={msg.isError ? 'alert' : undefined}
         >
+          {showTopRoleRow && (
           <div className="message__role">
             {msg.role === 'user'
               ? 'You'
               : msg.isError
                 ? 'Error'
-                : msg.source === 'app'
-                  ? 'Application'
-                  : 'Assistant'}
+                : 'Assistant'}
             {msg.role === 'assistant' && !msg.isError && msg.source === 'agent' && (
               <span className="message__source" title="Conversational Commerce agent">
                 {' '}(agent)
@@ -74,6 +80,7 @@ function MessageListComponent({
               </span>
             )}
           </div>
+          )}
           {msg.imageUri && msg.role === 'user' && (
             <div className="message__media">
               <img src={msg.imageUri} alt="Attached" className="message__image" />
@@ -113,11 +120,29 @@ function MessageListComponent({
           {msg.products && msg.products.length > 0 && (
             <div className="message__products">
               <h4>Products</h4>
-              <p className="message__product-count" aria-live="polite">
-                {msg.productTotalSize != null && msg.productTotalSize >= 0
-                  ? `Showing ${msg.products.length} of ${msg.productTotalSizeIsApproximate ? 'at least ' : ''}${msg.productTotalSize} ${msg.productTotalSize === 1 ? 'product' : 'products'}`
-                  : `Showing ${msg.products.length} ${msg.products.length === 1 ? 'product' : 'products'}`}
-              </p>
+              <div className="message__product-count-section">
+                <span className="message__product-count-source">Application</span>
+                <p className="message__product-count" aria-live="polite">
+                  {msg.productTotalSize != null && msg.productTotalSize >= 0
+                    ? `Showing ${msg.products.length} of ${msg.productTotalSizeIsApproximate ? 'at least ' : ''}${msg.productTotalSize} ${msg.productTotalSize === 1 ? 'product' : 'products'}`
+                    : `Showing ${msg.products.length} ${msg.products.length === 1 ? 'product' : 'products'}`}
+                </p>
+              </div>
+              {msg.role === 'assistant' && !msg.isError && (
+                <div className="message__role message__role--product-grid">
+                  Assistant
+                  {msg.source === 'agent' && (
+                    <span className="message__source" title="Conversational Commerce agent">
+                      {' '}(agent)
+                    </span>
+                  )}
+                  {msg.queryType && (
+                    <span className="message__query-type" title="Query classification">
+                      {' '}{msg.queryType}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="product-grid">
                 {msg.products.map((p, idx) => (
                   <ProductCard key={p.id || `p-${idx}`} product={p} index={idx} />
@@ -210,7 +235,8 @@ function MessageListComponent({
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
       <div ref={bottomRef} aria-hidden="true" />
     </div>
   );
