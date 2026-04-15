@@ -196,10 +196,11 @@ Returns available Gemini models. Requires `GOOGLE_API_KEY`.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| id, title, description, price | string | Core fields |
+| id | string | GCP Retail **resource name** (`Product.name`), e.g. `projects/…/branches/…/products/…`. Backend **Product.Get** enrichment uses this (must contain `/products/`). |
+| title, description, price | string | Core fields |
 | imageUri | string | Product image URL |
 | gtin | string | UPC/GTIN |
-| productId | string | Short ID |
+| productId | string | Short catalog id (not used for Product.Get in this app) |
 | categories, brands | string[] | Taxonomies |
 | uri | string | Product link |
 | availability, sizes, materials | string/string[] | Attributes |

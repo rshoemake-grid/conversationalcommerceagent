@@ -46,6 +46,21 @@ See `application.yml.example` and **[CONFIG.md](../CONFIG.md)**.
 
 If conversational search returns an empty **refined query**, the adapter may still run recovery logic (e.g. **no-preference** / **storage-type** paths) using prior context from the HTTP request before giving up on a product search.
 
+## Product.Get: which “key” is used?
+
+Enrichment calls **`Product.get`** only when **`transport=rest`** and a **`ProductFetcher`** bean is active (`RetailProductFetcherRest`).
+
+| Field on `AgentResponse.ProductResult` | Meaning | Used for Product.Get? |
+|----------------------------------------|---------|------------------------|
+| **`id`** | GCP **resource name** of the product — the API’s **`name`** field, e.g. `projects/…/locations/…/catalogs/…/branches/…/products/{productId}` | **Yes.** This is passed to `ProductFetcher.getProduct(String productName)` and requested as `GET https://retail.googleapis.com/v2/{name}`. |
+| **`productId`** | Short id within the branch (often the last path segment, or JSON `id`) | **No** for Product.Get in this codebase. |
+
+**Where `id` is set:** Search hits populate **`id`** from the Retail **`Product.name`** (gRPC: `product.getName()`; REST JSON: `"name"` on the product object via `ProductResponseParser`).
+
+**When enrichment runs:** `ProductEnrichmentService` only fetches details if **`id` is non-blank and contains the substring `/products/`** and description or price is missing. Otherwise it skips Product.Get.
+
+See **`ProductFetcher`**, **`ProductEnrichmentService`**, and **`RetailProductFetcherRest`** in the backend.
+
 ## Code entry points
 
 | Concern | Class |
