@@ -1,6 +1,7 @@
 package com.conversationalcommerce.agent.gemini;
 
 import com.conversationalcommerce.agent.config.ApiKeySanitizer;
+import com.conversationalcommerce.agent.config.GeminiApiKeyResolver;
 import com.conversationalcommerce.agent.config.GeminiClientFactory;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentConfig;
@@ -16,16 +17,13 @@ import org.springframework.stereotype.Service;
  * Only active when GOOGLE_API_KEY or app.gemini.api-key is set.
  */
 @Service
-@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText(@environment.getProperty('GOOGLE_API_KEY')) || T(org.springframework.util.StringUtils).hasText(@environment.getProperty('app.gemini.api-key'))")
+@ConditionalOnExpression("T(com.conversationalcommerce.agent.config.GeminiApiKeyResolver).isPresent(@environment)")
 public class ClarifyingQuestionGenerator {
 
     private static final Logger log = LoggerFactory.getLogger(ClarifyingQuestionGenerator.class);
 
     private final Environment environment;
     private final GeminiClientFactory clientFactory;
-
-    @Value("${app.gemini.api-key:}")
-    private String apiKeyFromConfig;
 
     @Value("${app.gemini.model:gemini-flash-latest}")
     private String model;
@@ -36,10 +34,7 @@ public class ClarifyingQuestionGenerator {
     }
 
     private String getRawApiKey() {
-        if (apiKeyFromConfig != null && !apiKeyFromConfig.isBlank()) {
-            return apiKeyFromConfig;
-        }
-        return environment.getProperty("GOOGLE_API_KEY");
+        return GeminiApiKeyResolver.resolve(environment);
     }
 
     /**

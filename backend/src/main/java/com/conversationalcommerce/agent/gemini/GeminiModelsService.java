@@ -1,6 +1,7 @@
 package com.conversationalcommerce.agent.gemini;
 
 import com.conversationalcommerce.agent.config.ApiKeySanitizer;
+import com.conversationalcommerce.agent.config.GeminiApiKeyResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.core.env.Environment;
@@ -18,15 +19,12 @@ import java.util.List;
  * Lists Gemini models that support generateContent. Only active when GOOGLE_API_KEY or app.gemini.api-key is set.
  */
 @Service
-@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText(@environment.getProperty('GOOGLE_API_KEY')) || T(org.springframework.util.StringUtils).hasText(@environment.getProperty('app.gemini.api-key'))")
+@ConditionalOnExpression("T(com.conversationalcommerce.agent.config.GeminiApiKeyResolver).isPresent(@environment)")
 public class GeminiModelsService {
 
     private static final String MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
     private final Environment environment;
-
-    @Value("${app.gemini.api-key:}")
-    private String apiKeyFromConfig;
 
     @Value("${app.gemini.referer:http://localhost:5173/}")
     private String referer;
@@ -36,10 +34,7 @@ public class GeminiModelsService {
     }
 
     private String getRawApiKey() {
-        if (apiKeyFromConfig != null && !apiKeyFromConfig.isBlank()) {
-            return apiKeyFromConfig;
-        }
-        return environment.getProperty("GOOGLE_API_KEY");
+        return GeminiApiKeyResolver.resolve(environment);
     }
 
     /**

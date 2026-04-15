@@ -27,9 +27,6 @@ public class AdkConfig {
     @Value("${app.gemini.model:gemini-flash-latest}")
     private String model;
 
-    @Value("${app.gemini.api-key:}")
-    private String apiKeyFromConfig;
-
     private final ConversationalCommerceClient conversationalCommerceClient;
     private final ConversationalCommerceConfig config;
     private final Environment environment;
@@ -64,14 +61,11 @@ public class AdkConfig {
     }
 
     private String getRawApiKey() {
-        if (apiKeyFromConfig != null && !apiKeyFromConfig.isBlank()) {
-            return apiKeyFromConfig;
-        }
-        return environment.getProperty("GOOGLE_API_KEY");
+        return GeminiApiKeyResolver.resolve(environment);
     }
 
     @Bean
-    @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText(@environment.getProperty('GOOGLE_API_KEY')) || T(org.springframework.util.StringUtils).hasText(@environment.getProperty('app.gemini.api-key'))")
+    @ConditionalOnExpression("T(com.conversationalcommerce.agent.config.GeminiApiKeyResolver).isPresent(@environment)")
     public LlmAgent adkOrchestratorAgent() {
         String rawKey = getRawApiKey();
         String sanitizedKey = ApiKeySanitizer.sanitize(rawKey);
@@ -95,18 +89,20 @@ public class AdkConfig {
                 .model(geminiModel)
                 .name("adk_orchestrator")
                 .instruction("""
-                    You are a shopping assistant orchestrator. You help users with product searches and shopping questions.
+                    You are a shopping assistant orchestrator. You help users find products using the searchProducts tool.
 
-                    When the user's request is vague or broad (e.g. "show me products", "shoes", "browse", "what do you have"),
-                    ask 1-2 clarifying questions BEFORE searching. For example:
-                    - "What type of shoes? Running, casual, sandals, or formal?"
-                    - "What style or color are you looking for?"
-                    - "Do you have a price range in mind?"
-                    Only call searchProducts when you have a sufficiently specific query.
+                    Prefer calling searchProducts over giving generic product education from memory. Do not list product types,
+                    brands, or package ideas from your training data when the user is trying to shop—use the tool and
+                    summarize what the store returns.
 
-                    When the user gives a specific query, use the searchProducts tool.
+                    If the user's request is vague (e.g. "show me products", "shoes", "browse"), ask at most one short
+                    clarifying question, then search. If they answer with no preference—"any", "either", "no preference",
+                    "doesn't matter", "you choose"—call searchProducts immediately with the topic you already have
+                    (e.g. "rice", "running shoes") and do not ask again or lecture about options.
+
+                    When the user gives a specific query, use searchProducts right away.
                     When the user asks about rewards, loyalty, or recommendations, use getLoyaltyRecommendations.
-                    When the user has general questions (store hours, policies, etc.), answer directly from your knowledge.
+                    When the user asks only about store hours or policies (not products), answer briefly from your knowledge.
                     If search results are returned, summarize them for the user.
                     """)
                 .description("Orchestrates product search, loyalty info, and general shopping assistance")

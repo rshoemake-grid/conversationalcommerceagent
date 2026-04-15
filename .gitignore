@@ -11,6 +11,9 @@ backend/src/main/resources/application.yml
 target/
 **/target/
 
+# macOS
+.DS_Store
+
 # IDE
 .idea/
 

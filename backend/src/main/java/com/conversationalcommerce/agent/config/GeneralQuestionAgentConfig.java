@@ -28,9 +28,6 @@ public class GeneralQuestionAgentConfig {
     @Value("${app.gemini.model:gemini-flash-latest}")
     private String model;
 
-    @Value("${app.gemini.api-key:}")
-    private String apiKeyFromConfig;
-
     private final Environment environment;
     private final GeminiClientFactory clientFactory;
 
@@ -40,10 +37,7 @@ public class GeneralQuestionAgentConfig {
     }
 
     private String getRawApiKey() {
-        if (apiKeyFromConfig != null && !apiKeyFromConfig.isBlank()) {
-            return apiKeyFromConfig;
-        }
-        return environment.getProperty("GOOGLE_API_KEY");
+        return GeminiApiKeyResolver.resolve(environment);
     }
 
     @Bean
