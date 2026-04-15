@@ -110,6 +110,7 @@ Response:
 
 | Document | Description |
 |----------|-------------|
+| [docs/README.md](docs/README.md) | **Start here** — index of topic guides (GCP two-call flow, modes, frontend/API) |
 | [CODE.md](CODE.md) | Code architecture, API reference, data models, key flows |
 | [DEPLOY.md](DEPLOY.md) | Docker, Kubernetes, Docker Compose, GCP credentials, CI/CD |
 | [CONFIG.md](CONFIG.md) | API keys, environment variables, local setup |

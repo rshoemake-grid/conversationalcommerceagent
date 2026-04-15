@@ -2,6 +2,8 @@
 
 Technical documentation for the Conversational Commerce Agent codebase.
 
+**Narrative guides** (how the system works end-to-end, especially **conversational search vs Retail Search**): see **[docs/README.md](docs/README.md)**.
+
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
@@ -215,6 +217,8 @@ When the agent asks a follow-up question without suggested answers (e.g. "Do you
 ---
 
 ## Key Flows
+
+For a **deeper explanation** of the GCP **conversational search** + **Retail Search** steps, see **[docs/product-search-and-retail-apis.md](docs/product-search-and-retail-apis.md)**.
 
 ### Chat Message Flow
 

@@ -1,5 +1,7 @@
 # API Keys and Configuration
 
+How Retail **conversational search** and **product search** calls fit together: **[docs/product-search-and-retail-apis.md](docs/product-search-and-retail-apis.md)**.
+
 ## Application Config
 
 `application.yml` is not committed (it may contain project-specific values). Copy the example to create your own:
