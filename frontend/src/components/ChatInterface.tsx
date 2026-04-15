@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { isGoogleChrome, VOICE_OUTPUT_CHROME_ONLY_TITLE } from '../utils/chromeVoiceSupport';
 import { ModeSelector } from './ModeSelector';
 import { MaxSuggestedAnswersControl } from './MaxSuggestedAnswersControl';
 import { PageSizeControl } from './PageSizeControl';
@@ -42,6 +43,8 @@ export function ChatInterface() {
     startNewConversation,
   } = useChat();
 
+  const voiceRequiresChrome = useMemo(() => !isGoogleChrome(), []);
+
   useEffect(() => {
     if (!loading && inputRef.current) {
       inputRef.current.focus();
@@ -81,11 +84,12 @@ export function ChatInterface() {
             disabled={loading}
           />
           <VoiceOutputToggle
-            enabled={voiceOutputEnabled}
+            enabled={voiceRequiresChrome ? false : voiceOutputEnabled}
             onToggle={setVoiceOutputEnabled}
-            isSpeaking={isSpeaking}
-            onStop={stopSpeaking}
-            disabled={loading}
+            isSpeaking={voiceRequiresChrome ? false : isSpeaking}
+            onStop={voiceRequiresChrome ? undefined : stopSpeaking}
+            disabled={loading || voiceRequiresChrome}
+            chromeOnlyTitle={voiceRequiresChrome ? VOICE_OUTPUT_CHROME_ONLY_TITLE : undefined}
           />
           <button
             type="button"

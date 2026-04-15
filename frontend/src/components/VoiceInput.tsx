@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { isGoogleChrome, VOICE_INPUT_CHROME_ONLY_TITLE } from '../utils/chromeVoiceSupport';
 
 interface VoiceInputProps {
   onResult: (transcript: string) => void;
@@ -31,6 +32,8 @@ interface SpeechRecognitionErrorEvent extends Event {
   error: string;
 }
 
+const VOICE_INPUT_NO_API_TITLE = 'Voice input is not available in this browser.';
+
 export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -40,7 +43,9 @@ export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
 
   const STOP_DELAY_MS = 400;
 
+  const chromeOk = typeof navigator !== 'undefined' && isGoogleChrome();
   const SpeechRecognitionClass =
+    chromeOk &&
     typeof window !== 'undefined' &&
     (window.SpeechRecognition || window.webkitSpeechRecognition);
 
@@ -107,7 +112,33 @@ export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
     }, STOP_DELAY_MS);
   }, [listening]);
 
-  if (!SpeechRecognitionClass) return null;
+  if (!chromeOk) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="voice-input"
+        aria-label="Voice input requires Google Chrome"
+        title={VOICE_INPUT_CHROME_ONLY_TITLE}
+      >
+        <MicIcon />
+      </button>
+    );
+  }
+
+  if (!SpeechRecognitionClass) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="voice-input"
+        aria-label="Voice input not available"
+        title={VOICE_INPUT_NO_API_TITLE}
+      >
+        <MicIcon />
+      </button>
+    );
+  }
 
   return (
     <button
@@ -128,22 +159,28 @@ export function VoiceInput({ onResult, disabled }: VoiceInputProps) {
       aria-label={listening ? 'Release to stop voice input' : 'Hold to speak'}
       title="Hold to speak"
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="20"
-        height="20"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-        <line x1="12" x2="12" y1="19" y2="23" />
-        <line x1="8" x2="16" y1="23" y2="23" />
-      </svg>
+      <MicIcon />
     </button>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <line x1="12" x2="12" y1="19" y2="23" />
+      <line x1="8" x2="16" y1="23" y2="23" />
+    </svg>
   );
 }

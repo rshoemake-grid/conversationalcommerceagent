@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChatInterface } from './ChatInterface'
@@ -8,12 +8,24 @@ vi.mock('../api/chatApi', () => ({
   sendChatMessage: vi.fn(),
 }))
 
+const CHROME_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
 describe('ChatInterface', () => {
   beforeEach(() => {
     vi.mocked(chatApi.sendChatMessage).mockReset()
     vi.stubGlobal('crypto', {
       randomUUID: () => 'test-uuid-123',
     })
+    vi.stubGlobal('navigator', {
+      ...globalThis.navigator,
+      userAgent: CHROME_UA,
+      vendor: 'Google Inc.',
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('renders header and mode selector', () => {

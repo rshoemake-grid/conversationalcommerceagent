@@ -60,4 +60,22 @@ describe('VoiceOutputToggle', () => {
     );
     expect(screen.getByRole('button')).toBeDisabled();
   });
+
+  it('uses Chrome-only title and label when chromeOnlyTitle is set', () => {
+    render(
+      <VoiceOutputToggle
+        enabled={false}
+        onToggle={() => {}}
+        disabled
+        chromeOnlyTitle="Spoken replies require Google Chrome. Please use Chrome for this feature."
+      />
+    );
+    const btn = screen.getByRole('button', { name: /Voice output requires Google Chrome/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute(
+      'title',
+      'Spoken replies require Google Chrome. Please use Chrome for this feature.'
+    );
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
+  });
 });

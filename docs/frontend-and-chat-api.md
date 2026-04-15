@@ -36,6 +36,12 @@ Exact Java types and validation: **`ChatRequest.java`**, **`ChatController.java`
 
 See **[CODE.md](../CODE.md)** for example JSON and frontend **Message** / **ProductDto** types.
 
+## Voice input and voice output (Google Chrome only)
+
+The **microphone** and **speaker** controls are **disabled** unless the app detects **Google Chrome** (desktop: `Chrome/` + `vendor === 'Google Inc.'`, excluding Edge/Opera; iOS: `CriOS/`). Hovering shows a short message to use Chrome for that feature.
+
+Implementation: **`frontend/src/utils/chromeVoiceSupport.ts`** (`isGoogleChrome`, tooltip strings). **`VoiceInput`**, **`VoiceOutputToggle`**, and **`ChatInterface`** apply this behavior.
+
 ## Raw panel
 
 **`RawResponsePanel`** shows **`rawResponse`** (and related history) for debugging conversational GCP payloads—useful when tracing refined queries and suggested answers.
