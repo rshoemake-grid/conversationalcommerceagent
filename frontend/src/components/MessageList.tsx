@@ -40,15 +40,6 @@ function MessageListComponent({
           <p>Send a message to get started. Try asking about products or store hours.</p>
         </div>
       )}
-      {loading && (
-        <div className="message message--assistant message--loading" role="status" aria-live="polite">
-          <div className="message__role">Assistant</div>
-          <div className="message__content message__content--loading">
-            <span className="message__spinner" aria-hidden="true" />
-            <span>Searching...</span>
-          </div>
-        </div>
-      )}
       {messages.map((msg, idx) => {
         const hasProducts = Boolean(msg.products && msg.products.length > 0);
         const showTopRoleRow =
@@ -237,6 +228,15 @@ function MessageListComponent({
         </div>
         );
       })}
+      {loading && (
+        <div className="message message--assistant message--loading" role="status" aria-live="polite">
+          <div className="message__role">Assistant</div>
+          <div className="message__content message__content--loading">
+            <span className="message__spinner" aria-hidden="true" />
+            <span>Searching...</span>
+          </div>
+        </div>
+      )}
       <div ref={bottomRef} aria-hidden="true" />
     </div>
   );

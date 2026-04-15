@@ -133,7 +133,13 @@ export function ChatInterface() {
             <div className="chat-input-area__buttons">
               <VoiceInput onResult={handleVoiceResult} disabled={loading} />
               <ImageInput onSelect={handleImageSelect} disabled={loading} />
-              <button onClick={handleSend} disabled={loading} aria-label={loading ? 'Sending message' : 'Send message'}>
+              <button
+                type="button"
+                className="chat-input-area__send"
+                onClick={handleSend}
+                disabled={loading}
+                aria-label={loading ? 'Sending message' : 'Send message'}
+              >
                 {loading ? 'Sending...' : 'Send'}
               </button>
             </div>

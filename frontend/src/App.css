@@ -152,7 +152,7 @@
 .voice-output-toggle__btn {
   padding: 0.4rem 0.75rem;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--chat-control-border);
   background: var(--bg-secondary);
   color: var(--muted);
   cursor: pointer;
@@ -164,12 +164,19 @@
 .voice-output-toggle__btn:hover:not(:disabled) {
   color: var(--text);
   background: var(--border-color);
+  border-color: var(--chat-control-border);
 }
 
 .voice-output-toggle__btn--on {
   background: var(--accent);
   color: var(--accent-fg);
-  border-color: var(--accent);
+  border-color: var(--chat-control-border);
+}
+
+.voice-output-toggle__btn--on:hover:not(:disabled) {
+  color: var(--accent-fg);
+  background: color-mix(in srgb, var(--accent) 88%, var(--accent-fg) 12%);
+  border-color: var(--chat-control-border);
 }
 
 .voice-output-toggle__stop {
@@ -708,7 +715,7 @@
 .image-input {
   padding: 0.75rem;
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--chat-control-border);
   background: var(--bg-secondary);
   color: inherit;
   cursor: pointer;
@@ -719,7 +726,8 @@
 
 .voice-input:hover:not(:disabled),
 .image-input:hover:not(:disabled) {
-  background: var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 78%, var(--text) 22%);
+  border-color: var(--chat-control-border);
 }
 
 .voice-input:disabled,
@@ -731,7 +739,7 @@
 .voice-input--active {
   background: var(--accent);
   color: var(--accent-fg);
-  border-color: var(--accent);
+  border-color: var(--chat-control-border);
 }
 
 .image-input__hidden {
@@ -769,21 +777,22 @@
   outline-offset: 2px;
 }
 
-.chat-input-area button {
+.chat-input-area__send {
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
-  border: none;
+  border: 1px solid var(--chat-control-border);
   background: var(--accent);
   color: var(--accent-fg);
   font-weight: 600;
   cursor: pointer;
 }
 
-.chat-input-area button:hover:not(:disabled) {
-  opacity: 0.9;
+.chat-input-area__send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 90%, var(--accent-fg) 10%);
+  border-color: var(--chat-control-border);
 }
 
-.chat-input-area button:disabled {
+.chat-input-area__send:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

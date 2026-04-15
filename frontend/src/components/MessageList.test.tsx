@@ -439,6 +439,18 @@ describe('MessageList', () => {
     expect(document.querySelector('.message__spinner')).toBeInTheDocument()
   })
 
+  it('shows loading spinner after the user message in document order', () => {
+    render(
+      <MessageList
+        messages={[{ id: '1', role: 'user', content: 'Hello' }]}
+        loading={true}
+      />
+    )
+    const userBubble = screen.getByText('Hello')
+    const status = screen.getByRole('status')
+    expect(userBubble.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('renders error message with Retry and Dismiss buttons', () => {
     const onRetry = vi.fn()
     const onDismissError = vi.fn()
